@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kunstklubben — Regnskap</title>
+<title>MykjeKunst — Regnskap</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <script type="module">
@@ -841,7 +841,7 @@
 <!-- Login screen -->
 <div class="login-screen" id="login-screen" style="display:none;">
   <div class="login-box">
-    <div class="logo">Kunst<em>klubben</em></div>
+    <div class="logo">Mykje<em>Kunst</em></div>
     <div class="subtitle">— logg inn for å fortsette —</div>
 
     <div id="login-form-wrap">
@@ -874,8 +874,8 @@
 
   <header>
     <div>
-      <div class="logo">Kunst<em>klubben</em></div>
-      <div class="subtitle">— et regnskap for medlemmer, midler og malerier —</div>
+      <div class="logo">Mykje<em>Kunst</em></div>
+      <div class="subtitle">— der penger blir til malerier —</div>
     </div>
     <div class="header-actions">
       <div class="sync-status" id="sync-status">
@@ -1379,7 +1379,7 @@
 // ============ STATE ============
 let state = {
   settings: {
-    name: 'Kunstklubben',
+    name: 'MykjeKunst',
     deposit: 1000,
     monthly: 200,
     startMonth: 8,
@@ -2850,31 +2850,91 @@ function switchDrawType(type) {
 }
 
 // Calculate which members are excluded from A-draw because they've won within last 3 years
-function getAWinnersWithinYears(yearsBack) {
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear() - yearsBack, now.getMonth(), now.getDate());
-  const winners = {};
-  state.draws.forEach(d => {
-    if (d.type !== 'A') return; // only A-draws count for exclusion
-    const drawDate = new Date(d.date);
-    if (drawDate >= cutoff) {
-      if (!winners[d.winnerId] || drawDate > new Date(winners[d.winnerId].date)) {
-        winners[d.winnerId] = { date: d.date, drawId: d.id };
-      }
-    }
-  });
-  return winners;
+// A-trekning periode: 3-årige sykluser per medlem fra innmeldingsdato.
+// Alle medlemmer som meldte seg inn FØR aug 2026 får aug 2026 som startpunkt (felles overgangsregel).
+// Nye medlemmer fra og med aug 2026 får sin egen innmeldingsdato (snapped til foregående 1. august).
+const A_PERIOD_SYSTEM_START = new Date(2026, 7, 1); // aug 1, 2026
+const A_PERIOD_START_MONTH = 8;
+const A_PERIOD_LENGTH_YEARS = 3;
+
+// Returns the effective period start date for a member.
+function getMemberPeriodStart(member) {
+  if (!member.joinDate) return A_PERIOD_SYSTEM_START;
+  const joinDate = new Date(member.joinDate);
+  if (joinDate < A_PERIOD_SYSTEM_START) return A_PERIOD_SYSTEM_START;
+  // Snap to the August 1st on or before join date
+  const joinYear = joinDate.getFullYear();
+  const joinMonth = joinDate.getMonth() + 1;
+  const startYear = joinMonth >= A_PERIOD_START_MONTH ? joinYear : joinYear - 1;
+  return new Date(startYear, A_PERIOD_START_MONTH - 1, 1);
+}
+
+// Returns the period index (0, 1, 2, ...) for a given date for this member.
+// 0 = first 3-year period from their start. Returns -1 if before their start.
+function getMemberPeriodIndex(member, date) {
+  const memberStart = getMemberPeriodStart(member);
+  const d = new Date(date);
+  if (d < memberStart) return -1;
+  const dYear = d.getFullYear();
+  const dMonth = d.getMonth() + 1;
+  const dSchoolYearStart = dMonth >= A_PERIOD_START_MONTH ? dYear : dYear - 1;
+  const memberStartYear = memberStart.getFullYear();
+  const yearsFromStart = dSchoolYearStart - memberStartYear;
+  if (yearsFromStart < 0) return -1;
+  return Math.floor(yearsFromStart / A_PERIOD_LENGTH_YEARS);
+}
+
+// Returns label for a member's period N, e.g. "2026/27 – 2028/29"
+function getMemberPeriodLabel(member, periodIndex) {
+  const memberStart = getMemberPeriodStart(member);
+  const startYear = memberStart.getFullYear() + (periodIndex * A_PERIOD_LENGTH_YEARS);
+  const endYear = startYear + A_PERIOD_LENGTH_YEARS - 1;
+  return `${startYear}/${String(startYear + 1).slice(-2)} – ${endYear}/${String(endYear + 1).slice(-2)}`;
+}
+
+// Returns how many school years remain in this member's current 3-year period.
+// 3 = just started, 2 = one year in, 1 = last year, 0 = period over (will start new)
+// Returns null if member's period hasn't started yet.
+function getMemberYearsLeft(member, date) {
+  const memberStart = getMemberPeriodStart(member);
+  const d = new Date(date);
+  if (d < memberStart) return null;
+  const dYear = d.getFullYear();
+  const dMonth = d.getMonth() + 1;
+  const dSchoolYearStart = dMonth >= A_PERIOD_START_MONTH ? dYear : dYear - 1;
+  const memberStartYear = memberStart.getFullYear();
+  const yearsFromStart = dSchoolYearStart - memberStartYear;
+  if (yearsFromStart < 0) return null;
+  // Where in the period are we? 0, 1, or 2
+  const yearInPeriod = yearsFromStart % A_PERIOD_LENGTH_YEARS;
+  return A_PERIOD_LENGTH_YEARS - yearInPeriod;
 }
 
 function getEligibleParticipants(type) {
-  // Active members only
   const active = state.members.filter(m => m.active !== false);
   if (type === 'B') return { eligible: active, excluded: {} };
 
-  // For A-draw: exclude anyone who won an A-draw in last 3 years
-  const recentAWinners = getAWinnersWithinYears(3);
-  const eligible = active.filter(m => !recentAWinners[m.id]);
-  return { eligible, excluded: recentAWinners };
+  // For A-draw: check each member's personal period
+  const today = new Date();
+  const winners = {};
+
+  active.forEach(m => {
+    const currentPeriod = getMemberPeriodIndex(m, today);
+    if (currentPeriod < 0) return; // member's period hasn't started yet (joined in the future)
+
+    // Check if member won A in their current personal period
+    state.draws.forEach(d => {
+      if (d.type !== 'A') return;
+      if (d.winnerId !== m.id) return;
+      const drawPeriod = getMemberPeriodIndex(m, d.date);
+      if (drawPeriod === currentPeriod) {
+        winners[m.id] = { date: d.date, drawId: d.id, period: drawPeriod };
+      }
+    });
+  });
+
+  const eligible = active.filter(m => !winners[m.id]);
+  return { eligible, excluded: winners };
 }
 
 function renderDrawParticipants() {
@@ -2883,7 +2943,7 @@ function renderDrawParticipants() {
   const descEl = document.getElementById('draw-description');
 
   if (currentDrawType === 'A') {
-    descEl.innerHTML = 'Hovedtrekningen. <strong>Et medlem kan kun vinne A-trekningen én gang per 3 år.</strong> Tidligere vinnere innenfor 3-årsperioden er automatisk utelukket.';
+    descEl.innerHTML = `Hovedtrekningen. <strong>Hvert medlem har sin egen 3-årsperiode</strong> som starter når de melder seg inn. I løpet av denne perioden skal medlemmet vinne A-trekningen én gang. Når perioden er over, nullstilles medlemmet og starter sin neste 3-årsperiode.<br><br><span style="font-size:12px;">Medlemmer registrert før august 2026 har felles startpunkt der.</span>`;
   } else {
     descEl.innerHTML = 'Sekundærtrekningen. Alle aktive medlemmer kan vinne B-trekningen hvert år, uavhengig av tidligere seire.';
   }
@@ -2899,22 +2959,56 @@ function renderDrawParticipants() {
 
   // Info card
   let infoHtml = '';
-  if (currentDrawType === 'A' && excludedCount > 0) {
-    infoHtml = `<div class="eligibility-card">
-      <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--accent);font-style:italic;">${excludedCount}</div>
-      <div>
-        <div><strong>medlemmer utelukket fra A-trekning</strong></div>
-        <div style="margin-top:2px;">Disse har vunnet A-trekning innen siste 3 år. ${eligible.length} medlemmer er kvalifisert.</div>
-      </div>
-    </div>`;
-  } else if (currentDrawType === 'A') {
-    infoHtml = `<div class="eligibility-card">
-      <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);font-style:italic;">${eligible.length}</div>
-      <div>
-        <div><strong>medlemmer kvalifisert</strong></div>
-        <div style="margin-top:2px;">Ingen er utelukket på grunn av tidligere A-seire.</div>
-      </div>
-    </div>`;
+  if (currentDrawType === 'A') {
+    // Group eligible members by how many years they have left in their current period
+    const today = new Date();
+    const yearGroups = { 3: [], 2: [], 1: [] };
+    eligible.forEach(m => {
+      const yearsLeft = getMemberYearsLeft(m, today);
+      if (yearsLeft !== null && yearGroups[yearsLeft]) {
+        yearGroups[yearsLeft].push(m);
+      }
+    });
+
+    // Main card
+    if (excludedCount > 0) {
+      infoHtml = `<div class="eligibility-card">
+        <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--accent);font-style:italic;">${excludedCount}</div>
+        <div>
+          <div><strong>medlemmer har allerede vunnet i denne perioden</strong></div>
+          <div style="margin-top:2px;">${eligible.length} medlemmer gjenstår som kvalifiserte.</div>
+        </div>
+      </div>`;
+    } else {
+      infoHtml = `<div class="eligibility-card">
+        <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);font-style:italic;">${eligible.length}</div>
+        <div>
+          <div><strong>medlemmer kvalifisert i denne perioden</strong></div>
+          <div style="margin-top:2px;">Alle aktive medlemmer er kvalifiserte.</div>
+        </div>
+      </div>`;
+    }
+
+    // Years-left breakdown — show only if there are eligible members
+    if (eligible.length > 0) {
+      infoHtml += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+        <div style="padding:14px 16px;background:var(--paper-deep);border-left:3px solid var(--green);">
+          <div style="font-family:'Fraunces',serif;font-size:24px;font-weight:600;">${yearGroups[3].length}</div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;margin-top:4px;">3 år igjen</div>
+          ${yearGroups[3].length > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;font-family:'Fraunces',serif;">${yearGroups[3].map(m => escape(m.name.split(' ')[0])).join(', ')}</div>` : ''}
+        </div>
+        <div style="padding:14px 16px;background:var(--paper-deep);border-left:3px solid var(--gold);">
+          <div style="font-family:'Fraunces',serif;font-size:24px;font-weight:600;">${yearGroups[2].length}</div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;margin-top:4px;">2 år igjen</div>
+          ${yearGroups[2].length > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic;font-family:'Fraunces',serif;">${yearGroups[2].map(m => escape(m.name.split(' ')[0])).join(', ')}</div>` : ''}
+        </div>
+        <div style="padding:14px 16px;background:var(--paper-deep);border-left:3px solid var(--accent);">
+          <div style="font-family:'Fraunces',serif;font-size:24px;font-weight:600;">${yearGroups[1].length}</div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;margin-top:4px;">1 år igjen</div>
+          ${yearGroups[1].length > 0 ? `<div style="font-size:11px;color:var(--accent);margin-top:4px;font-style:italic;font-family:'Fraunces',serif;">${yearGroups[1].map(m => escape(m.name.split(' ')[0])).join(', ')}</div>` : ''}
+        </div>
+      </div>`;
+    }
   } else {
     infoHtml = `<div class="eligibility-card">
       <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);font-style:italic;">${eligible.length}</div>
@@ -2939,7 +3033,16 @@ function renderDrawParticipants() {
     let exclusionNote = '';
     if (isExcluded) {
       const winYear = new Date(exclusion.date).getFullYear();
-      exclusionNote = `<div class="exclusion-note">Vant A i ${winYear}</div>`;
+      const periodLabel = getMemberPeriodLabel(m, exclusion.period);
+      exclusionNote = `<div class="exclusion-note">Vant A i ${winYear} · periode ${periodLabel}</div>`;
+    } else if (isActive) {
+      // Show which period this member is currently in (helpful context)
+      const today = new Date();
+      const currentPeriod = getMemberPeriodIndex(m, today);
+      if (currentPeriod >= 0) {
+        const periodLabel = getMemberPeriodLabel(m, currentPeriod);
+        exclusionNote = `<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;">Periode ${periodLabel}</div>`;
+      }
     }
 
     html += `<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--paper-deep);${isExcluded ? '' : 'cursor:pointer;'}text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:400;" class="${cls}">
@@ -3817,7 +3920,7 @@ function renderA6Label(a) {
       <div class="a6-label-artist">av ${escape(a.artist)}</div>
       ${metaLines}
       ${a.bio ? `<div class="a6-label-divider"></div><div class="a6-label-bio">${escape(a.bio)}</div>` : ''}
-      <div class="a6-label-footer">${escape(state.settings.name || 'Kunstklubben')} <em>·</em> ${state.settings.name === 'Kunstklubben' ? 'samling' : 'kunstsamling'}</div>
+      <div class="a6-label-footer">${escape(state.settings.name || 'MykjeKunst')} <em>·</em> kunstsamling</div>
     </div>
   </div>`;
 }
@@ -3907,7 +4010,7 @@ function loadSettingsUI() {
   document.getElementById('set-opening').value = state.settings.opening || 0;
 }
 function saveSettings() {
-  state.settings.name = document.getElementById('set-name').value || 'Kunstklubben';
+  state.settings.name = document.getElementById('set-name').value || 'MykjeKunst';
   state.settings.deposit = parseFloat(document.getElementById('set-deposit').value) || 1000;
   state.settings.monthly = parseFloat(document.getElementById('set-monthly').value) || 200;
   state.settings.startMonth = parseInt(document.getElementById('set-startmonth').value);
