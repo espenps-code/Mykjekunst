@@ -10,6 +10,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
   // ============ FIREBASE-KONFIGURASJON ============
   // Lim inn din egen Firebase-config her — instruksjon i bunnen av filen
@@ -23,14 +24,15 @@
   };
   // =================================================
 
-  let app, auth, db;
+  let app, auth, db, storage;
   let configValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "DIN_API_KEY_HER";
 
   if (configValid) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
-    window.firebase = { auth, db, signInWithEmailAndPassword, onAuthStateChanged, signOut, doc, getDoc, setDoc, onSnapshot };
+    storage = getStorage(app);
+    window.firebase = { auth, db, storage, signInWithEmailAndPassword, onAuthStateChanged, signOut, doc, getDoc, setDoc, onSnapshot, storageRef, uploadString, getDownloadURL, deleteObject };
   }
   window.firebaseReady = configValid;
   window.dispatchEvent(new Event('firebase-ready'));
@@ -559,6 +561,247 @@
     border: 1px solid var(--line);
   }
 
+  /* Kunstarkiv */
+  .artwork-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+  }
+  .artwork-card {
+    background: white;
+    border: 1px solid var(--line);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+  }
+  .artwork-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(26,24,20,0.08);
+  }
+  .artwork-card-img {
+    aspect-ratio: 1;
+    background: var(--paper-deep);
+    background-size: cover;
+    background-position: center;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .artwork-card-img.no-image {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    color: var(--muted);
+    font-size: 32px;
+  }
+  .artwork-card-body {
+    padding: 14px 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .artwork-card-title {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .artwork-card-artist {
+    font-style: italic;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: 'Fraunces', serif;
+    margin-bottom: 8px;
+  }
+  .artwork-card-meta {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: auto;
+  }
+  .artwork-status-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .artwork-status-badge.available { background: var(--green); }
+  .artwork-status-badge.claimed { background: var(--gold); color: var(--ink); }
+  .artwork-status-badge.sold { background: var(--muted); }
+
+  .artwork-detail-img {
+    width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    background: var(--paper-deep);
+    margin-bottom: 16px;
+  }
+  .artwork-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .artwork-info-grid > div { padding: 10px 12px; background: var(--paper-deep); }
+  .artwork-info-grid .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  .artwork-info-grid .value { font-family: 'Fraunces', serif; font-size: 16px; margin-top: 2px; }
+
+  .img-upload-area {
+    border: 2px dashed var(--line);
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    margin-bottom: 12px;
+    background: var(--paper-deep);
+    transition: all 0.2s;
+  }
+  .img-upload-area:hover { border-color: var(--accent); background: white; }
+  .img-preview {
+    max-width: 100%;
+    max-height: 240px;
+    margin: 8px auto;
+    display: block;
+  }
+  .img-size-info {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Print A6 labels */
+  .label-sheet {
+    background: white;
+    padding: 0;
+    margin: 0;
+  }
+  .label-print-preview {
+    background: white;
+    border: 1px solid var(--line);
+    padding: 24px;
+    margin-bottom: 16px;
+    max-width: 800px;
+  }
+  .a4-page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 10mm;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 0;
+    background: white;
+    margin: 0 auto;
+    page-break-after: always;
+  }
+  .a6-label {
+    width: 95mm;
+    height: 138mm;
+    border: 1px dashed #d4ccb8;
+    padding: 8mm;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Manrope', sans-serif;
+    color: #1a1814;
+    overflow: hidden;
+    position: relative;
+  }
+  .a6-label::before {
+    content: '';
+    position: absolute;
+    top: 4mm; left: 4mm; right: 4mm; bottom: 4mm;
+    border: 0.5px solid #b89968;
+    pointer-events: none;
+  }
+  .a6-label-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 4mm;
+  }
+  .a6-label-title {
+    font-family: 'Fraunces', serif;
+    font-size: 16pt;
+    font-weight: 600;
+    line-height: 1.15;
+    margin-bottom: 2mm;
+  }
+  .a6-label-artist {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 12pt;
+    color: #b8410f;
+    margin-bottom: 4mm;
+  }
+  .a6-label-meta {
+    font-size: 8pt;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 1mm;
+    line-height: 1.5;
+  }
+  .a6-label-meta strong {
+    color: #1a1814;
+    font-weight: 600;
+  }
+  .a6-label-divider {
+    height: 0.5px;
+    background: #d4ccb8;
+    margin: 3mm 0;
+  }
+  .a6-label-bio {
+    font-size: 8.5pt;
+    line-height: 1.4;
+    color: #1a1814;
+    flex: 1;
+    overflow: hidden;
+  }
+  .a6-label-footer {
+    font-size: 7pt;
+    color: #8a8275;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-top: auto;
+    padding-top: 2mm;
+    border-top: 0.5px solid #d4ccb8;
+  }
+  .a6-label-footer em { color: #b89968; font-style: italic; }
+
+  @media print {
+    body { background: white !important; }
+    body * { visibility: hidden; }
+    .label-sheet, .label-sheet * { visibility: visible; }
+    .label-sheet { position: absolute; left: 0; top: 0; width: 100%; }
+    .label-print-preview { border: none; padding: 0; box-shadow: none; }
+    .no-print { display: none !important; }
+    .a4-page {
+      page-break-after: always;
+      width: 210mm;
+      height: 297mm;
+      margin: 0;
+      box-shadow: none;
+    }
+    .a6-label { border: none; }
+    @page { size: A4; margin: 0; }
+  }
+
   @media (max-width: 640px) {
     .container { padding: 16px 12px; }
     .logo { font-size: 32px; }
@@ -648,6 +891,7 @@
     <button data-view="members">Medlemmer</button>
     <button data-view="import">Kontoutskrift</button>
     <button data-view="expenses">Utgifter</button>
+    <button data-view="artworks">Kunstarkiv</button>
     <button data-view="reports">Rapporter</button>
     <button data-view="draw">Trekning</button>
     <button data-view="settings">Innstillinger</button>
@@ -806,6 +1050,109 @@
     </div>
   </div>
 
+  <!-- ARTWORKS -->
+  <div class="view" id="view-artworks">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Legg til <em>kunstverk</em></div>
+      </div>
+      <div class="img-upload-area" id="artwork-img-upload" onclick="document.getElementById('artwork-img-input').click()">
+        <div style="font-family:'Fraunces',serif;font-size:32px;color:var(--muted);font-style:italic;">+</div>
+        <div style="margin-top:8px;color:var(--muted);font-size:14px;">Klikk eller dra et bilde hit</div>
+        <div class="img-size-info">JPG eller PNG, komprimeres automatisk</div>
+        <input type="file" id="artwork-img-input" accept="image/*" style="display:none" onchange="handleArtworkImage(event)">
+        <img id="artwork-img-preview" class="img-preview" style="display:none;">
+        <div id="artwork-img-status" class="img-size-info"></div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label>Tittel</label>
+          <input type="text" id="new-artwork-title" placeholder="Sommernatt ved Skagen">
+        </div>
+        <div>
+          <label>Kunstner</label>
+          <input type="text" id="new-artwork-artist" placeholder="P.S. Krøyer">
+        </div>
+        <div>
+          <label>Type</label>
+          <select id="new-artwork-type">
+            <option>Maleri</option>
+            <option>Grafikk</option>
+            <option>Litografi</option>
+            <option>Tresnitt</option>
+            <option>Akvarell</option>
+            <option>Tegning</option>
+            <option>Foto</option>
+            <option>Skulptur</option>
+            <option>Annet</option>
+          </select>
+        </div>
+        <div>
+          <label>Høyde (cm)</label>
+          <input type="number" id="new-artwork-height" placeholder="40">
+        </div>
+        <div>
+          <label>Bredde (cm)</label>
+          <input type="number" id="new-artwork-width" placeholder="60">
+        </div>
+        <div>
+          <label>Anskaffet (dato)</label>
+          <input type="date" id="new-artwork-acquired">
+        </div>
+        <div>
+          <label>Kostnad (kr)</label>
+          <input type="number" id="new-artwork-cost" placeholder="0">
+        </div>
+        <div>
+          <label>Årgang (valgfritt)</label>
+          <input type="text" id="new-artwork-year" placeholder="1892">
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Fakta om kunstneren</label>
+        <textarea id="new-artwork-bio" rows="3" placeholder="Født 1851 i Stavanger. Ledende skikkelse i Skagenmalerne ..."></textarea>
+      </div>
+      <button class="btn" onclick="addArtwork()">Legg til kunstverk</button>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Kunst<em>arkiv</em></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <select id="artwork-filter" onchange="renderArtworks()" style="width:auto;">
+            <option value="all">Alle kunstverk</option>
+            <option value="available">Bare tilgjengelige</option>
+            <option value="claimed">Bare valgte</option>
+            <option value="sold">Bare solgte</option>
+          </select>
+          <button class="btn btn-secondary btn-small" onclick="openLabelPrintView()">Skriv ut lapper</button>
+        </div>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="artwork-search" placeholder="Søk i tittel, kunstner eller fakta …" oninput="renderArtworks()">
+      </div>
+      <div id="artworks-list"></div>
+    </div>
+  </div>
+
+  <!-- LABEL PRINT VIEW (hidden by default, shown when printing) -->
+  <div class="view" id="view-labels">
+    <div class="section no-print">
+      <div class="section-header">
+        <div class="section-title">Skriv ut <em>kunstlapper</em></div>
+        <button class="btn btn-secondary btn-small" onclick="closeLabelPrintView()">Tilbake til arkiv</button>
+      </div>
+      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Velg hvilke kunstverk du vil ha lapper for. 4 A6-lapper per A4-side. Bruk nettleserens "Skriv ut" (Ctrl+P / Cmd+P) — sørg for at marger settes til "Ingen" og bakgrunnsgrafikk er aktivert.</p>
+      <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-small" onclick="selectAllForPrint(true)">Velg alle</button>
+        <button class="btn btn-secondary btn-small" onclick="selectAllForPrint(false)">Fjern alle</button>
+        <button class="btn btn-small" onclick="window.print()" style="margin-left:auto;">🖨 Skriv ut</button>
+      </div>
+      <div id="label-selection"></div>
+    </div>
+    <div class="label-sheet" id="label-sheet"></div>
+  </div>
+
   <!-- REPORTS -->
   <div class="view" id="view-reports">
     <div class="section">
@@ -955,6 +1302,18 @@
   </div>
 </div>
 
+<!-- Artwork detail modal -->
+<div class="modal-backdrop" id="artwork-modal">
+  <div class="modal" style="max-width: 700px;">
+    <h3 id="modal-artwork-title">Kunstverk</h3>
+    <div id="modal-artwork-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="deleteArtwork()">Slett</button>
+      <button class="btn" onclick="closeArtworkModal()">Lukk</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============ STATE ============
 let state = {
@@ -970,10 +1329,15 @@ let state = {
   payments: [],
   expenses: [],
   draws: [],
+  artworks: [],
   parsedTx: []
 };
 
 let currentMemberId = null;
+let currentArtworkId = null;
+let pendingArtworkImage = null;
+let pendingEditImage = null;
+let labelPrintSelection = new Set();
 let currentUser = null;
 let firestoreUnsubscribe = null;
 let pendingSave = null;
@@ -1068,6 +1432,7 @@ function subscribeToData() {
             payments: data.payments || [],
             expenses: data.expenses || [],
             draws: data.draws || [],
+            artworks: data.artworks || [],
             parsedTx: data.parsedTx || []
           };
           if (!firstLoad) {
@@ -1100,6 +1465,7 @@ function save() {
         payments: state.payments,
         expenses: state.expenses,
         draws: state.draws,
+        artworks: state.artworks,
         parsedTx: state.parsedTx,
         _writtenAt: Date.now()
       });
@@ -1107,7 +1473,12 @@ function save() {
     } catch (err) {
       console.error(err);
       setSyncStatus('error', 'Lagring feilet');
-      toast('Kunne ikke lagre: ' + err.message, true);
+      // Specific error for documents that are too large
+      if (err.message && err.message.includes('exceeds the maximum')) {
+        toast('Lagring feilet: kunstarkivet er for stort. Slett noen bilder eller komprimer dem mer.', true);
+      } else {
+        toast('Kunne ikke lagre: ' + err.message, true);
+      }
     }
   }, 300);
 }
@@ -1308,6 +1679,27 @@ function openMember(id) {
     </div>
     <button class="btn btn-small" onclick="addManualPayment('${id}')">Legg til</button>
   </div>`;
+
+  // Member's chosen artworks
+  const chosenArtworks = (state.artworks || []).filter(a => a.claimedBy === id);
+  if (chosenArtworks.length > 0) {
+    html += '<div style="margin-top:24px;"><label>Valgte kunstverk</label>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:8px;">';
+    chosenArtworks.sort((a,b) => (b.claimedAt || '').localeCompare(a.claimedAt || '')).forEach(a => {
+      const src = artworkImageSrc(a);
+      const imgStyle = src ? `background-image:url('${src}');background-size:cover;background-position:center;` : 'background:var(--paper-deep);';
+      const draw = a.drawId ? state.draws.find(d => d.id === a.drawId) : null;
+      const drawLabel = draw ? `${draw.type || 'A'}-${new Date(draw.date).getFullYear()}` : (a.claimedAt ? new Date(a.claimedAt).getFullYear() : '');
+      html += `<div onclick="closeMemberModal();setTimeout(()=>openArtwork('${a.id}'),100);" style="cursor:pointer;background:white;border:1px solid var(--line);overflow:hidden;">
+        <div style="aspect-ratio:1;${imgStyle}"></div>
+        <div style="padding:8px 10px;">
+          <div style="font-family:'Fraunces',serif;font-size:13px;font-weight:600;line-height:1.2;">${escape(a.title)}</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:2px;">${escape(drawLabel)}</div>
+        </div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
 
   html += '</div>'; // close member-view
 
@@ -1933,6 +2325,7 @@ function skipTx(idx) {
 
 function autoMatchAll() {
   let matched = 0;
+  let split = 0;
   const remaining = [];
   state.parsedTx.forEach(tx => {
     // Skip expenses — they need manual category assignment
@@ -1941,22 +2334,63 @@ function autoMatchAll() {
     if (!m) { remaining.push(tx); return; }
     const dep = state.settings.deposit;
     const mon = state.settings.monthly;
-    let type = 'other';
-    if (Math.abs(tx.amount - dep) < 1) type = 'deposit';
-    else if (Math.abs(tx.amount - mon) < 1) type = 'monthly';
-    else if (mon > 0 && tx.amount % mon < 1) type = 'monthly';
-    else { remaining.push(tx); return; }
-    const dup = state.payments.find(p => p.memberId === m.id && p.date === tx.date && Math.abs(p.amount - tx.amount) < 1);
-    if (dup) { remaining.push(tx); return; }
-    state.payments.push({
-      id: uid(), memberId: m.id, date: tx.date,
-      amount: tx.amount, type, description: tx.description
-    });
-    matched++;
+
+    // First check if this is a splittable combo (deposit + N monthly)
+    const splitInfo = detectSplit(tx);
+
+    // Special case 1: exact deposit
+    if (Math.abs(tx.amount - dep) < 1) {
+      const dup = state.payments.find(p => p.memberId === m.id && p.date === tx.date && Math.abs(p.amount - tx.amount) < 1);
+      if (dup) { remaining.push(tx); return; }
+      state.payments.push({ id: uid(), memberId: m.id, date: tx.date, amount: tx.amount, type: 'deposit', description: tx.description });
+      matched++;
+      return;
+    }
+
+    // Special case 2: exact monthly
+    if (Math.abs(tx.amount - mon) < 1) {
+      const dup = state.payments.find(p => p.memberId === m.id && p.date === tx.date && Math.abs(p.amount - tx.amount) < 1);
+      if (dup) { remaining.push(tx); return; }
+      state.payments.push({ id: uid(), memberId: m.id, date: tx.date, amount: tx.amount, type: 'monthly', description: tx.description });
+      matched++;
+      return;
+    }
+
+    // Case 3: detectable split (deposit + N monthly, or just N monthly)
+    if (splitInfo) {
+      // Avoid duplicate split: check if a deposit on this date already exists
+      const baseDate = tx.date;
+      // Add deposit if part of split
+      if (splitInfo.deposit > 0) {
+        const dup = state.payments.find(p => p.memberId === m.id && p.date === baseDate && Math.abs(p.amount - splitInfo.deposit) < 1 && p.type === 'deposit');
+        if (!dup) {
+          state.payments.push({ id: uid(), memberId: m.id, date: baseDate, amount: splitInfo.deposit, type: 'deposit', description: tx.description + ' (auto-splittet — innskudd)' });
+        }
+      }
+      // Spread monthly payments backward in time
+      const baseDateObj = new Date(baseDate);
+      for (let i = 0; i < splitInfo.monthlyCount; i++) {
+        const d = new Date(baseDateObj);
+        d.setMonth(d.getMonth() - i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const dup = state.payments.find(p => p.memberId === m.id && p.date === dateStr && Math.abs(p.amount - splitInfo.monthlyAmount) < 1 && p.type === 'monthly');
+        if (!dup) {
+          state.payments.push({ id: uid(), memberId: m.id, date: dateStr, amount: splitInfo.monthlyAmount, type: 'monthly', description: tx.description + ' (auto-splittet — månedsbidrag ' + (i+1) + '/' + splitInfo.monthlyCount + ')' });
+        }
+      }
+      split++;
+      return;
+    }
+
+    // Otherwise: not a clean match, leave it for manual review
+    remaining.push(tx);
   });
   state.parsedTx = remaining;
   save();
-  toast(`Auto-matchet ${matched}. ${remaining.length} igjen.`);
+  let msg = `Auto-matchet ${matched}`;
+  if (split > 0) msg += `, splittet ${split}`;
+  msg += `. ${remaining.length} igjen.`;
+  toast(msg);
   renderAll();
 }
 
@@ -2406,23 +2840,61 @@ function renderDrawHistory() {
     wrap.innerHTML = '<div style="color:var(--muted);font-size:14px;">Ingen trekninger ennå.</div>';
     return;
   }
-  let html = '<table><thead><tr><th>Dato</th><th>Type</th><th>Vinner</th><th>Deltakere</th><th></th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Dato</th><th>Type</th><th>Vinner</th><th>Valgt kunst</th><th></th></tr></thead><tbody>';
   [...state.draws].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(d => {
     const w = state.members.find(m => m.id === d.winnerId);
-    const type = d.type || 'A'; // legacy draws default to A
+    const type = d.type || 'A';
     const badge = type === 'A'
       ? '<span class="badge" style="background:var(--gold);color:var(--ink);">A-trekning</span>'
       : '<span class="badge badge-neutral">B-trekning</span>';
+    const linkedArt = (state.artworks || []).find(a => a.drawId === d.id);
+    let artCell;
+    if (linkedArt) {
+      artCell = `<a onclick="openArtwork('${linkedArt.id}')" style="cursor:pointer;color:var(--accent);font-style:italic;">${escape(linkedArt.title)}</a>`;
+    } else {
+      artCell = `<button class="btn btn-secondary btn-small" onclick="quickClaimForDraw('${d.id}')">Velg kunstverk</button>`;
+    }
     html += `<tr>
       <td>${fmtDate(d.date)}</td>
       <td>${badge}</td>
       <td><strong>${w ? escape(w.name) : 'Ukjent'}</strong></td>
-      <td>${d.participantIds.length}</td>
+      <td>${artCell}</td>
       <td><button class="btn btn-danger btn-small" onclick="deleteDraw('${d.id}')">×</button></td>
     </tr>`;
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
+}
+
+function quickClaimForDraw(drawId) {
+  const d = state.draws.find(x => x.id === drawId);
+  if (!d) return;
+  const available = (state.artworks || []).filter(a => a.status === 'available');
+  if (available.length === 0) {
+    toast('Ingen tilgjengelige kunstverk. Gå til Kunstarkiv og legg til først.', true);
+    return;
+  }
+  // Show a simple prompt-like UI: open the first available artwork's modal for claiming, or build a list
+  // Simplest: use the artwork modal with prefilled member and draw
+  // Even simpler: a confirm with list. Let's do an inline selector via prompt-like flow.
+  const options = available.map((a, i) => `${i+1}. ${a.title} (${a.artist})`).join('\n');
+  const choice = prompt(`Hvilket kunstverk velger ${state.members.find(m => m.id === d.winnerId)?.name || 'vinneren'}?\n\n${options}\n\nSkriv inn nummer:`);
+  if (!choice) return;
+  const idx = parseInt(choice) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= available.length) {
+    toast('Ugyldig valg', true);
+    return;
+  }
+  const a = available[idx];
+  a.status = 'claimed';
+  a.claimedBy = d.winnerId;
+  a.claimedAt = d.date;
+  a.drawId = d.id;
+  a.drawType = d.type || 'A';
+  save();
+  toast(`"${a.title}" tilknyttet`);
+  renderDrawHistory();
+  renderArtworks();
 }
 function deleteDraw(id) {
   if (!confirm('Slette trekning? Dette kan påvirke hvem som er kvalifisert til A-trekning.')) return;
@@ -2430,6 +2902,570 @@ function deleteDraw(id) {
   save();
   renderDrawHistory();
   renderDrawParticipants();
+}
+
+// ============ ARTWORKS ============
+const MAX_IMAGE_WIDTH = 1600;       // Larger now that we have proper Storage
+const TARGET_IMAGE_BYTES = 800000;  // ~800 KB per image — fine in Storage
+
+async function handleArtworkImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('artwork-img-status');
+  statusEl.textContent = 'Komprimerer …';
+  try {
+    const dataUrl = await compressImage(file);
+    pendingArtworkImage = dataUrl;
+    const preview = document.getElementById('artwork-img-preview');
+    preview.src = dataUrl;
+    preview.style.display = 'block';
+    const sizeKB = Math.round(dataUrl.length * 0.75 / 1024);
+    statusEl.textContent = `Bilde klart — ${sizeKB} KB`;
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = 'Kunne ikke lese bildet';
+    pendingArtworkImage = null;
+  }
+  e.target.value = '';
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > MAX_IMAGE_WIDTH) {
+          height = Math.round(height * MAX_IMAGE_WIDTH / width);
+          width = MAX_IMAGE_WIDTH;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        let quality = 0.9;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrl.length * 0.75 > TARGET_IMAGE_BYTES && quality > 0.4) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        resolve(dataUrl);
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Upload a data URL to Firebase Storage and return the public download URL
+async function uploadImageToStorage(dataUrl, artworkId) {
+  if (!window.firebase || !window.firebase.storage) {
+    throw new Error('Firebase Storage er ikke tilgjengelig');
+  }
+  const path = `users/${currentUser.uid}/artworks/${artworkId}.jpg`;
+  const ref = window.firebase.storageRef(window.firebase.storage, path);
+  await window.firebase.uploadString(ref, dataUrl, 'data_url');
+  const url = await window.firebase.getDownloadURL(ref);
+  return { path, url };
+}
+
+async function deleteImageFromStorage(path) {
+  if (!path || !window.firebase || !window.firebase.storage) return;
+  try {
+    const ref = window.firebase.storageRef(window.firebase.storage, path);
+    await window.firebase.deleteObject(ref);
+  } catch (err) {
+    // ignore — file may already be gone
+    console.warn('Could not delete image:', err.message);
+  }
+}
+
+async function addArtwork() {
+  const title = document.getElementById('new-artwork-title').value.trim();
+  const artist = document.getElementById('new-artwork-artist').value.trim();
+  const type = document.getElementById('new-artwork-type').value;
+  const height = parseFloat(document.getElementById('new-artwork-height').value) || null;
+  const width = parseFloat(document.getElementById('new-artwork-width').value) || null;
+  const acquired = document.getElementById('new-artwork-acquired').value;
+  const cost = parseFloat(document.getElementById('new-artwork-cost').value) || 0;
+  const year = document.getElementById('new-artwork-year').value.trim();
+  const bio = document.getElementById('new-artwork-bio').value.trim();
+
+  if (!title) { toast('Tittel er påkrevd', true); return; }
+  if (!artist) { toast('Kunstner er påkrevd', true); return; }
+
+  const id = uid();
+  let imagePath = null;
+  let imageUrl = null;
+
+  if (pendingArtworkImage) {
+    const statusEl = document.getElementById('artwork-img-status');
+    statusEl.textContent = 'Laster opp bilde …';
+    try {
+      const result = await uploadImageToStorage(pendingArtworkImage, id);
+      imagePath = result.path;
+      imageUrl = result.url;
+    } catch (err) {
+      console.error(err);
+      toast('Kunne ikke laste opp bilde: ' + err.message + '. Sjekk at Firebase Storage er aktivert.', true);
+      statusEl.textContent = '';
+      return;
+    }
+  }
+
+  state.artworks.push({
+    id,
+    title, artist, type,
+    height, width,
+    acquired: acquired || new Date().toISOString().slice(0, 10),
+    cost,
+    year,
+    bio,
+    imagePath,   // path in Storage (for deletion)
+    imageUrl,    // public URL (for display)
+    image: null, // legacy — kept for backward compat with old data
+    status: 'available',
+    claimedBy: null,
+    claimedAt: null,
+    drawId: null,
+    drawType: null
+  });
+  save();
+
+  document.getElementById('new-artwork-title').value = '';
+  document.getElementById('new-artwork-artist').value = '';
+  document.getElementById('new-artwork-height').value = '';
+  document.getElementById('new-artwork-width').value = '';
+  document.getElementById('new-artwork-acquired').value = '';
+  document.getElementById('new-artwork-cost').value = '';
+  document.getElementById('new-artwork-year').value = '';
+  document.getElementById('new-artwork-bio').value = '';
+  document.getElementById('artwork-img-preview').style.display = 'none';
+  document.getElementById('artwork-img-status').textContent = '';
+  pendingArtworkImage = null;
+
+  toast('Kunstverk lagt til');
+  renderArtworks();
+}
+
+// Helper: get the display URL for an artwork (Storage URL or legacy embedded image)
+function artworkImageSrc(a) {
+  return a.imageUrl || a.image || null;
+}
+
+function renderArtworks() {
+  const list = document.getElementById('artworks-list');
+  if (!list) return;
+  const search = (document.getElementById('artwork-search')?.value || '').toLowerCase().trim();
+  const filter = document.getElementById('artwork-filter')?.value || 'all';
+
+  let items = [...(state.artworks || [])];
+  if (filter !== 'all') items = items.filter(a => a.status === filter);
+  if (search) {
+    items = items.filter(a =>
+      a.title.toLowerCase().includes(search) ||
+      a.artist.toLowerCase().includes(search) ||
+      (a.bio || '').toLowerCase().includes(search)
+    );
+  }
+  items.sort((a, b) => (b.acquired || '').localeCompare(a.acquired || ''));
+
+  if (!state.artworks || state.artworks.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">Ingen kunstverk ennå</div><div>Legg til ditt første kunstverk i skjemaet over.</div></div>';
+    return;
+  }
+  if (items.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">Ingen treff</div></div>';
+    return;
+  }
+
+  let html = '<div class="artwork-grid">';
+  items.forEach(a => {
+    const member = a.claimedBy ? state.members.find(m => m.id === a.claimedBy) : null;
+    let badge = '';
+    if (a.status === 'available') badge = '<div class="artwork-status-badge available">Tilgjengelig</div>';
+    else if (a.status === 'claimed') badge = '<div class="artwork-status-badge claimed">Valgt</div>';
+    else if (a.status === 'sold') badge = '<div class="artwork-status-badge sold">Solgt</div>';
+
+    const dim = a.height && a.width ? `${a.height} × ${a.width} cm` : '';
+    const src = artworkImageSrc(a);
+    const imgStyle = src ? `style="background-image:url('${src}');"` : '';
+    const imgCls = src ? '' : 'no-image';
+    html += `<div class="artwork-card" onclick="openArtwork('${a.id}')">
+      <div class="artwork-card-img ${imgCls}" ${imgStyle}>${src ? '' : '+'}${badge}</div>
+      <div class="artwork-card-body">
+        <div class="artwork-card-title">${escape(a.title)}</div>
+        <div class="artwork-card-artist">${escape(a.artist)}</div>
+        <div class="artwork-card-meta">
+          ${escape(a.type)}${dim ? ' · ' + dim : ''}
+          ${member ? '<br>Valgt av ' + escape(member.name) : ''}
+        </div>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  list.innerHTML = html;
+}
+
+function openArtwork(id) {
+  currentArtworkId = id;
+  const a = state.artworks.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('modal-artwork-title').textContent = a.title;
+
+  const member = a.claimedBy ? state.members.find(m => m.id === a.claimedBy) : null;
+  const draw = a.drawId ? state.draws.find(d => d.id === a.drawId) : null;
+
+  let html = '<div id="artwork-view">';
+  const detailSrc = artworkImageSrc(a);
+  if (detailSrc) html += `<img src="${detailSrc}" class="artwork-detail-img">`;
+  html += `<div style="font-family:'Fraunces',serif;font-style:italic;color:var(--muted);margin-bottom:4px;">av ${escape(a.artist)}${a.year ? ', ' + escape(a.year) : ''}</div>`;
+
+  html += '<div class="artwork-info-grid">';
+  html += `<div><div class="label">Type</div><div class="value">${escape(a.type)}</div></div>`;
+  if (a.height && a.width) html += `<div><div class="label">Mål</div><div class="value">${a.height} × ${a.width} cm</div></div>`;
+  if (a.acquired) html += `<div><div class="label">Anskaffet</div><div class="value">${fmtDate(a.acquired)}</div></div>`;
+  if (a.cost) html += `<div><div class="label">Kostnad</div><div class="value">${fmt(a.cost)}</div></div>`;
+  html += '</div>';
+
+  if (a.bio) {
+    html += `<div style="margin-bottom:16px;"><label>Om kunstneren</label><div style="font-size:14px;line-height:1.5;margin-top:6px;">${escape(a.bio).replace(/\n/g, '<br>')}</div></div>`;
+  }
+
+  // Status / claiming section
+  html += '<div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;">';
+  html += '<label>Status</label>';
+  if (a.status === 'claimed' && member) {
+    const drawLabel = draw ? `${draw.type || 'A'}-trekning ${new Date(draw.date).getFullYear()}` : 'trekning';
+    html += `<div style="background:var(--paper-deep);padding:12px;margin-top:8px;">
+      <div style="font-family:'Fraunces',serif;font-size:18px;">Valgt av <em style="color:var(--accent);">${escape(member.name)}</em></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">${drawLabel}, ${fmtDate(a.claimedAt)}</div>
+    </div>`;
+    html += `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-small" onclick="unclaimArtwork()">Fjern tilknytning</button>
+      <button class="btn btn-secondary btn-small" onclick="markArtworkSold()">Marker som solgt</button>
+    </div>`;
+  } else if (a.status === 'sold') {
+    html += '<div style="margin-top:8px;color:var(--muted);font-style:italic;">Solgt / avhendet</div>';
+    html += '<button class="btn btn-secondary btn-small" onclick="markArtworkAvailable()" style="margin-top:8px;">Gjør tilgjengelig igjen</button>';
+  } else {
+    // Available — show claim form
+    html += '<div style="margin-top:8px;color:var(--muted);font-style:italic;margin-bottom:12px;">Tilgjengelig for valg</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;">';
+    html += '<div><label style="font-size:10px;">Medlem (vinner)</label><select id="claim-member">';
+    html += '<option value="">— Velg medlem —</option>';
+    state.members.forEach(m => { html += `<option value="${m.id}">${escape(m.name)}</option>`; });
+    html += '</select></div>';
+    html += '<div><label style="font-size:10px;">Trekning</label><select id="claim-draw">';
+    html += '<option value="">— Ingen / manuell —</option>';
+    [...state.draws].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(d => {
+      const w = state.members.find(x => x.id === d.winnerId);
+      const year = new Date(d.date).getFullYear();
+      html += `<option value="${d.id}">${d.type || 'A'}-${year} (${w?.name || 'ukjent'})</option>`;
+    });
+    html += '</select></div>';
+    html += '<button class="btn btn-small" onclick="claimArtwork()">Tilknytt</button>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Edit button
+  html += '<div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;text-align:right;">';
+  html += '<button class="btn btn-secondary btn-small" onclick="startArtworkEdit()">Rediger detaljer</button>';
+  html += '</div>';
+
+  html += '</div>'; // close artwork-view
+
+  // Edit view (hidden)
+  html += `<div id="artwork-edit" style="display:none;">
+    <label>Bilde</label>
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      ${detailSrc ? `<img src="${detailSrc}" style="width:80px;height:80px;object-fit:cover;border:1px solid var(--line);">` : '<div style="width:80px;height:80px;background:var(--paper-deep);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-style:italic;font-size:24px;">+</div>'}
+      <button class="btn btn-secondary btn-small" onclick="document.getElementById('edit-artwork-img-input').click()">Bytt bilde</button>
+      ${detailSrc ? '<button class="btn btn-danger btn-small" onclick="removeArtworkImage()">Fjern bilde</button>' : ''}
+      <input type="file" id="edit-artwork-img-input" accept="image/*" style="display:none" onchange="handleEditArtworkImage(event)">
+    </div>
+    <div id="edit-image-status" style="font-size:11px;color:var(--muted);margin-bottom:8px;"></div>
+    <label>Tittel</label>
+    <input type="text" id="edit-artwork-title" value="${escape(a.title)}" style="margin-bottom:8px;">
+    <label>Kunstner</label>
+    <input type="text" id="edit-artwork-artist" value="${escape(a.artist)}" style="margin-bottom:8px;">
+    <div class="form-grid">
+      <div><label>Type</label><select id="edit-artwork-type">
+        ${['Maleri','Grafikk','Litografi','Tresnitt','Akvarell','Tegning','Foto','Skulptur','Annet'].map(t => `<option ${a.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+      </select></div>
+      <div><label>Høyde (cm)</label><input type="number" id="edit-artwork-height" value="${a.height || ''}"></div>
+      <div><label>Bredde (cm)</label><input type="number" id="edit-artwork-width" value="${a.width || ''}"></div>
+      <div><label>Anskaffet</label><input type="date" id="edit-artwork-acquired" value="${a.acquired || ''}"></div>
+      <div><label>Kostnad</label><input type="number" id="edit-artwork-cost" value="${a.cost || ''}"></div>
+      <div><label>Årgang</label><input type="text" id="edit-artwork-year" value="${escape(a.year || '')}"></div>
+    </div>
+    <label>Fakta om kunstneren</label>
+    <textarea id="edit-artwork-bio" rows="3">${escape(a.bio || '')}</textarea>
+    <div style="margin-top:12px;display:flex;gap:8px;">
+      <button class="btn btn-small" onclick="saveArtworkEdit()">Lagre</button>
+      <button class="btn btn-secondary btn-small" onclick="cancelArtworkEdit()">Avbryt</button>
+    </div>
+  </div>`;
+
+  document.getElementById('modal-artwork-content').innerHTML = html;
+  document.getElementById('artwork-modal').classList.add('show');
+}
+
+function closeArtworkModal() {
+  document.getElementById('artwork-modal').classList.remove('show');
+  currentArtworkId = null;
+}
+
+async function deleteArtwork() {
+  if (!currentArtworkId) return;
+  const a = state.artworks.find(x => x.id === currentArtworkId);
+  if (!a) return;
+  if (!confirm('Slette "' + a.title + '"? Dette kan ikke angres.')) return;
+  // Delete image from Storage first
+  if (a.imagePath) {
+    await deleteImageFromStorage(a.imagePath);
+  }
+  state.artworks = state.artworks.filter(x => x.id !== currentArtworkId);
+  save();
+  closeArtworkModal();
+  renderArtworks();
+  toast('Kunstverk slettet');
+}
+
+function startArtworkEdit() {
+  document.getElementById('artwork-view').style.display = 'none';
+  document.getElementById('artwork-edit').style.display = 'block';
+}
+
+function cancelArtworkEdit() {
+  document.getElementById('artwork-edit').style.display = 'none';
+  document.getElementById('artwork-view').style.display = 'block';
+}
+
+async function saveArtworkEdit() {
+  const a = state.artworks.find(x => x.id === currentArtworkId);
+  if (!a) return;
+  a.title = document.getElementById('edit-artwork-title').value.trim() || a.title;
+  a.artist = document.getElementById('edit-artwork-artist').value.trim() || a.artist;
+  a.type = document.getElementById('edit-artwork-type').value;
+  a.height = parseFloat(document.getElementById('edit-artwork-height').value) || null;
+  a.width = parseFloat(document.getElementById('edit-artwork-width').value) || null;
+  a.acquired = document.getElementById('edit-artwork-acquired').value || a.acquired;
+  a.cost = parseFloat(document.getElementById('edit-artwork-cost').value) || 0;
+  a.year = document.getElementById('edit-artwork-year').value.trim();
+  a.bio = document.getElementById('edit-artwork-bio').value.trim();
+
+  // Handle pending image swap
+  if (pendingEditImage) {
+    const statusEl = document.getElementById('edit-image-status');
+    if (statusEl) statusEl.textContent = 'Laster opp nytt bilde …';
+    try {
+      // Delete old image if present
+      if (a.imagePath) await deleteImageFromStorage(a.imagePath);
+      const result = await uploadImageToStorage(pendingEditImage, a.id);
+      a.imagePath = result.path;
+      a.imageUrl = result.url;
+      a.image = null; // clear legacy field
+      pendingEditImage = null;
+    } catch (err) {
+      console.error(err);
+      toast('Kunne ikke laste opp bilde: ' + err.message, true);
+      return;
+    }
+  }
+
+  save();
+  toast('Endringer lagret');
+  openArtwork(currentArtworkId);
+  renderArtworks();
+}
+
+async function handleEditArtworkImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('edit-image-status');
+  if (statusEl) statusEl.textContent = 'Komprimerer …';
+  try {
+    pendingEditImage = await compressImage(file);
+    const sizeKB = Math.round(pendingEditImage.length * 0.75 / 1024);
+    if (statusEl) statusEl.textContent = `Nytt bilde klart (${sizeKB} KB) — klikk "Lagre" for å bruke det`;
+  } catch (err) {
+    console.error(err);
+    if (statusEl) statusEl.textContent = 'Kunne ikke lese bildet';
+    pendingEditImage = null;
+  }
+  e.target.value = '';
+}
+
+async function removeArtworkImage() {
+  const a = state.artworks.find(x => x.id === currentArtworkId);
+  if (!a) return;
+  if (!confirm('Fjerne bildet fra dette kunstverket?')) return;
+  if (a.imagePath) await deleteImageFromStorage(a.imagePath);
+  a.imagePath = null;
+  a.imageUrl = null;
+  a.image = null;
+  pendingEditImage = null;
+  save();
+  toast('Bilde fjernet');
+  openArtwork(currentArtworkId);
+  renderArtworks();
+}
+
+function claimArtwork() {
+  const a = state.artworks.find(x => x.id === currentArtworkId);
+  if (!a) return;
+  const memberSel = document.getElementById('claim-member');
+  const drawSel = document.getElementById('claim-draw');
+  if (!memberSel.value) { toast('Velg medlem', true); return; }
+
+  a.status = 'claimed';
+  a.claimedBy = memberSel.value;
+  a.claimedAt = new Date().toISOString().slice(0, 10);
+  if (drawSel.value) {
+    const draw = state.draws.find(d => d.id === drawSel.value);
+    if (draw) {
+      a.drawId = draw.id;
+      a.drawType = draw.type || 'A';
+      a.claimedAt = draw.date;
+    }
+  }
+  save();
+  toast('Tilknyttet medlem');
+  openArtwork(currentArtworkId);
+  renderArtworks();
+}
+
+function unclaimArtwork() {
+  const a = state.artworks.find(x => x.id === currentArtworkId);
+  if (!a) return;
+  if (!confirm('Fjerne tilknytning til medlem? Kunstverket blir tilgjengelig igjen.')) return;
+  a.status = 'available';
+  a.claimedBy = null;
+  a.claimedAt = null;
+  a.drawId = null;
+  a.drawType = null;
+  save();
+  openArtwork(currentArtworkId);
+  renderArtworks();
+}
+
+function markArtworkSold() {
+  const a = state.artworks.find(x => x.id === currentArtworkId);
+  if (!a) return;
+  a.status = 'sold';
+  save();
+  openArtwork(currentArtworkId);
+  renderArtworks();
+}
+
+function markArtworkAvailable() {
+  const a = state.artworks.find(x => x.id === currentArtworkId);
+  if (!a) return;
+  a.status = 'available';
+  a.claimedBy = null;
+  a.claimedAt = null;
+  a.drawId = null;
+  a.drawType = null;
+  save();
+  openArtwork(currentArtworkId);
+  renderArtworks();
+}
+
+// ============ LABEL PRINTING ============
+function openLabelPrintView() {
+  if (!state.artworks || state.artworks.length === 0) {
+    toast('Ingen kunstverk å skrive ut', true);
+    return;
+  }
+  // Switch to labels view
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.getElementById('view-labels').classList.add('active');
+  // Default: select all
+  labelPrintSelection = new Set(state.artworks.map(a => a.id));
+  renderLabelSelection();
+  renderLabelSheet();
+}
+
+function closeLabelPrintView() {
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.querySelector('nav button[data-view="artworks"]').classList.add('active');
+  document.getElementById('view-artworks').classList.add('active');
+}
+
+function selectAllForPrint(select) {
+  if (select) labelPrintSelection = new Set(state.artworks.map(a => a.id));
+  else labelPrintSelection.clear();
+  renderLabelSelection();
+  renderLabelSheet();
+}
+
+function toggleLabelSelection(id) {
+  if (labelPrintSelection.has(id)) labelPrintSelection.delete(id);
+  else labelPrintSelection.add(id);
+  renderLabelSheet();
+}
+
+function renderLabelSelection() {
+  const wrap = document.getElementById('label-selection');
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">';
+  state.artworks.forEach(a => {
+    const checked = labelPrintSelection.has(a.id) ? 'checked' : '';
+    html += `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--paper-deep);cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);font-weight:400;">
+      <input type="checkbox" ${checked} onchange="toggleLabelSelection('${a.id}')" style="width:auto;">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escape(a.title)}<br><span style="font-size:11px;color:var(--muted);font-style:italic;">${escape(a.artist)}</span></span>
+    </label>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+function renderLabelSheet() {
+  const sheet = document.getElementById('label-sheet');
+  const selected = state.artworks.filter(a => labelPrintSelection.has(a.id));
+  if (selected.length === 0) {
+    sheet.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);">Ingen kunstverk valgt.</div>';
+    return;
+  }
+  // Group into pages of 4
+  let html = '';
+  for (let i = 0; i < selected.length; i += 4) {
+    html += '<div class="a4-page">';
+    for (let j = i; j < i + 4 && j < selected.length; j++) {
+      html += renderA6Label(selected[j]);
+    }
+    // Fill empty slots so 2x2 grid renders correctly
+    for (let k = selected.length; k < i + 4; k++) {
+      html += '<div class="a6-label"></div>';
+    }
+    html += '</div>';
+  }
+  sheet.innerHTML = html;
+}
+
+function renderA6Label(a) {
+  const dim = a.height && a.width ? `${a.height} × ${a.width} cm` : '';
+  const yearOrAcq = a.year || (a.acquired ? new Date(a.acquired).getFullYear() : '');
+  let metaLines = '';
+  if (a.type) metaLines += `<div class="a6-label-meta">${escape(a.type)}${dim ? ' · ' + dim : ''}</div>`;
+  if (yearOrAcq) metaLines += `<div class="a6-label-meta">${escape(String(yearOrAcq))}</div>`;
+
+  return `<div class="a6-label">
+    <div class="a6-label-content">
+      <div class="a6-label-title">${escape(a.title)}</div>
+      <div class="a6-label-artist">av ${escape(a.artist)}</div>
+      ${metaLines}
+      ${a.bio ? `<div class="a6-label-divider"></div><div class="a6-label-bio">${escape(a.bio)}</div>` : ''}
+      <div class="a6-label-footer">${escape(state.settings.name || 'Kunstklubben')} <em>·</em> ${state.settings.name === 'Kunstklubben' ? 'samling' : 'kunstsamling'}</div>
+    </div>
+  </div>`;
 }
 
 // ============ DASHBOARD ============
@@ -2547,12 +3583,13 @@ function importData(e) {
 }
 
 function resetAll() {
-  if (!confirm('Dette sletter ALT — medlemmer, innbetalinger, utgifter og trekninger. Sikker?')) return;
+  if (!confirm('Dette sletter ALT — medlemmer, innbetalinger, utgifter, kunstverk og trekninger. Sikker?')) return;
   if (!confirm('Virkelig sikker? Last ned en sikkerhetskopi først hvis du er usikker.')) return;
   state.members = [];
   state.payments = [];
   state.expenses = [];
   state.draws = [];
+  state.artworks = [];
   state.parsedTx = [];
   save();
   renderAll();
@@ -2601,6 +3638,7 @@ function renderAll() {
   renderPayments();
   renderParsedTx();
   renderExpenses();
+  renderArtworks();
   renderReports();
   renderDrawParticipants();
   renderDrawHistory();
@@ -2633,6 +3671,29 @@ window.addEventListener('load', () => {
 
   document.getElementById('new-member-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('exp-date').value = new Date().toISOString().slice(0, 10);
+
+  // Artwork image drag-drop
+  const artDz = document.getElementById('artwork-img-upload');
+  if (artDz) {
+    ['dragenter', 'dragover'].forEach(ev => artDz.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation(); artDz.style.borderColor = 'var(--accent)';
+    }));
+    ['dragleave', 'drop'].forEach(ev => artDz.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation(); artDz.style.borderColor = '';
+    }));
+    artDz.addEventListener('drop', e => {
+      const f = e.dataTransfer.files[0];
+      if (f && f.type.startsWith('image/')) {
+        const input = document.getElementById('artwork-img-input');
+        const dt = new DataTransfer();
+        dt.items.add(f);
+        input.files = dt.files;
+        handleArtworkImage({ target: input });
+      } else {
+        toast('Slipp en bildefil', true);
+      }
+    });
+  }
 });
 
 // Expose for inline onclick
@@ -2673,6 +3734,26 @@ window.renderReports = renderReports;
 window.exportCSV = exportCSV;
 window.doLogin = doLogin;
 window.doLogout = doLogout;
+window.handleArtworkImage = handleArtworkImage;
+window.handleEditArtworkImage = handleEditArtworkImage;
+window.removeArtworkImage = removeArtworkImage;
+window.addArtwork = addArtwork;
+window.renderArtworks = renderArtworks;
+window.openArtwork = openArtwork;
+window.closeArtworkModal = closeArtworkModal;
+window.deleteArtwork = deleteArtwork;
+window.startArtworkEdit = startArtworkEdit;
+window.cancelArtworkEdit = cancelArtworkEdit;
+window.saveArtworkEdit = saveArtworkEdit;
+window.claimArtwork = claimArtwork;
+window.unclaimArtwork = unclaimArtwork;
+window.markArtworkSold = markArtworkSold;
+window.markArtworkAvailable = markArtworkAvailable;
+window.openLabelPrintView = openLabelPrintView;
+window.closeLabelPrintView = closeLabelPrintView;
+window.selectAllForPrint = selectAllForPrint;
+window.toggleLabelSelection = toggleLabelSelection;
+window.quickClaimForDraw = quickClaimForDraw;
 </script>
 
 <!--
