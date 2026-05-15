@@ -1028,6 +1028,7 @@
           <label>Kategori</label>
           <select id="exp-category">
             <option>Kunstkjøp</option>
+            <option>Innramming</option>
             <option>Trekning / premie</option>
             <option>Møte / servering</option>
             <option>Administrasjon</option>
@@ -2074,6 +2075,7 @@ function renderParsedTx() {
           <input type="text" id="match-expdesc-${idx}" value="${escape(tx.description)}" placeholder="Beskrivelse" style="width:100%;margin-bottom:6px;font-size:13px;">
           <select id="match-expcat-${idx}" style="width:100%;">
             <option ${guessedCategory === 'Kunstkjøp' ? 'selected' : ''}>Kunstkjøp</option>
+            <option ${guessedCategory === 'Innramming' ? 'selected' : ''}>Innramming</option>
             <option ${guessedCategory === 'Trekning / premie' ? 'selected' : ''}>Trekning / premie</option>
             <option ${guessedCategory === 'Møte / servering' ? 'selected' : ''}>Møte / servering</option>
             <option ${guessedCategory === 'Administrasjon' ? 'selected' : ''}>Administrasjon</option>
@@ -2124,6 +2126,7 @@ function guessExpenseCategory(tx) {
   const d = (tx.description || '').toLowerCase();
   // Simple heuristics on common Norwegian banking terms
   if (/galleri|kunst|maleri|billedkunstn|grafikk|litografi|skulpt/.test(d)) return 'Kunstkjøp';
+  if (/innramm|ramme|rammer|glass|passepartout|montering/.test(d)) return 'Innramming';
   if (/premie|trekning|gavekort/.test(d)) return 'Trekning / premie';
   if (/kafé|cafe|restaur|servering|catering|joker|kiwi|rema|coop|spar|meny/.test(d)) return 'Møte / servering';
   if (/gebyr|porto|posten|admin|kontofør/.test(d)) return 'Administrasjon';
@@ -2467,7 +2470,7 @@ function renderExpenses() {
   sorted.forEach(e => {
     if (editingExpenseId === e.id) {
       // Edit row
-      const categories = ['Kunstkjøp','Trekning / premie','Møte / servering','Administrasjon','Annet'];
+      const categories = ['Kunstkjøp','Innramming','Trekning / premie','Møte / servering','Administrasjon','Annet'];
       html += `<tr style="background:var(--paper-deep);">
         <td><input type="date" id="edit-exp-date-${e.id}" value="${e.date}" style="font-size:13px;padding:6px 8px;"></td>
         <td><input type="text" id="edit-exp-desc-${e.id}" value="${escape(e.description)}" style="font-size:13px;padding:6px 8px;"></td>
