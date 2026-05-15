@@ -1148,6 +1148,14 @@
           <label>Årgang (valgfritt)</label>
           <input type="text" id="new-artwork-year" placeholder="1892">
         </div>
+        <div>
+          <label>Til trekning</label>
+          <select id="new-artwork-drawcategory">
+            <option value="A">A-trekning</option>
+            <option value="B">B-trekning</option>
+            <option value="">Ikke spesifisert</option>
+          </select>
+        </div>
       </div>
       <div style="margin-bottom:12px;">
         <label>Fakta om kunstneren</label>
@@ -1165,6 +1173,8 @@
             <option value="available">Bare tilgjengelige</option>
             <option value="claimed">Bare valgte</option>
             <option value="sold">Bare solgte</option>
+            <option value="draw-A">Til A-trekning</option>
+            <option value="draw-B">Til B-trekning</option>
           </select>
           <button class="btn btn-secondary btn-small" onclick="openLabelPrintView()">Skriv ut lapper</button>
         </div>
@@ -1243,6 +1253,15 @@
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
         <button class="btn" onclick="startDraw()" id="draw-btn">Start trekning</button>
         <button class="btn btn-secondary" onclick="resetDraw()">Tilbakestill</button>
+      </div>
+
+      <!-- Artwork picker (shown after a winner is drawn) -->
+      <div id="draw-artwork-picker" style="display:none;margin-top:32px;">
+        <div style="padding:16px 20px;background:var(--paper-deep);border-left:3px solid var(--gold);margin-bottom:16px;">
+          <div style="font-family:'Fraunces',serif;font-size:18px;"><em style="color:var(--accent);" id="draw-picker-winner">Vinneren</em> velger kunstverk</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px;">Klikk bildet vinneren peker på, så knyttes det automatisk i arkivet.</div>
+        </div>
+        <div id="draw-artwork-grid"></div>
       </div>
 
       <div style="margin-top:32px;">
@@ -2990,18 +3009,22 @@ function startDraw() {
       launchConfetti();
 
       // Save the draw
-      state.draws.push({
+      const drawRecord = {
         id: uid(),
         date: new Date().toISOString().slice(0, 10),
         winnerId: winner.id,
         participantIds: participants.map(p => p.id),
         type: currentDrawType
-      });
+      };
+      state.draws.push(drawRecord);
       save();
       btn.disabled = false;
       renderDrawHistory();
-      renderDrawParticipants(); // refresh in case A-exclusions changed
+      renderDrawParticipants();
       toast('🎉 ' + winner.name + ' vant ' + currentDrawType + '-trekningen!');
+
+      // Show artwork picker for the winner
+      showDrawArtworkPicker(drawRecord.id, winner, currentDrawType);
       return;
     }
 
@@ -3067,6 +3090,80 @@ function resetDraw() {
   nameEl.classList.remove('spinning', 'winner-reveal');
   stageEl.classList.remove('spinning', 'winner');
   document.getElementById('draw-btn').disabled = false;
+  // Hide the artwork picker
+  const picker = document.getElementById('draw-artwork-picker');
+  if (picker) picker.style.display = 'none';
+}
+
+function showDrawArtworkPicker(drawId, winner, drawType) {
+  const picker = document.getElementById('draw-artwork-picker');
+  const grid = document.getElementById('draw-artwork-grid');
+  const winnerLabel = document.getElementById('draw-picker-winner');
+  if (!picker || !grid) return;
+
+  winnerLabel.textContent = winner.name;
+
+  // Find available artworks matching this draw category (or unspecified)
+  const available = (state.artworks || []).filter(a =>
+    a.status === 'available' && (a.drawCategory === drawType || !a.drawCategory)
+  );
+
+  if (available.length === 0) {
+    grid.innerHTML = `<div class="empty">
+      <div class="empty-title">Ingen tilgjengelige kunstverk for ${drawType}-trekning</div>
+      <div>Legg til kunstverk i Kunstarkiv-fanen, eller knytt manuelt via trekningshistorikken.</div>
+    </div>`;
+  } else {
+    // Build grid of clickable artworks
+    let html = '<div class="artwork-grid">';
+    available.forEach(a => {
+      const src = artworkImageSrc(a);
+      const imgStyle = src ? `style="background-image:url('${src}');"` : '';
+      const imgCls = src ? '' : 'no-image';
+      const dim = a.height && a.width ? `${a.height} × ${a.width} cm` : '';
+      let drawBadge = '';
+      if (a.drawCategory === 'A') drawBadge = '<div class="artwork-status-badge" style="left:8px;right:auto;background:var(--gold);color:var(--ink);">A</div>';
+      else if (a.drawCategory === 'B') drawBadge = '<div class="artwork-status-badge" style="left:8px;right:auto;background:var(--ink);color:var(--paper);">B</div>';
+
+      html += `<div class="artwork-card" onclick="pickArtworkForDraw('${drawId}', '${a.id}')">
+        <div class="artwork-card-img ${imgCls}" ${imgStyle}>${src ? '' : '+'}${drawBadge}</div>
+        <div class="artwork-card-body">
+          <div class="artwork-card-title">${escape(a.title)}</div>
+          <div class="artwork-card-artist">${escape(a.artist)}</div>
+          <div class="artwork-card-meta">${escape(a.type)}${dim ? ' · ' + dim : ''}</div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    grid.innerHTML = html;
+  }
+
+  picker.style.display = 'block';
+  // Scroll into view smoothly
+  setTimeout(() => picker.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+}
+
+function pickArtworkForDraw(drawId, artworkId) {
+  const draw = state.draws.find(d => d.id === drawId);
+  const artwork = state.artworks.find(a => a.id === artworkId);
+  if (!draw || !artwork) return;
+
+  if (!confirm(`Tilknytt "${artwork.title}" til ${state.members.find(m => m.id === draw.winnerId)?.name || 'vinneren'}?`)) return;
+
+  artwork.status = 'claimed';
+  artwork.claimedBy = draw.winnerId;
+  artwork.claimedAt = draw.date;
+  artwork.drawId = draw.id;
+  artwork.drawType = draw.type || 'A';
+  save();
+
+  // Hide picker
+  const picker = document.getElementById('draw-artwork-picker');
+  if (picker) picker.style.display = 'none';
+
+  toast(`🎨 "${artwork.title}" tilknyttet`);
+  renderDrawHistory();
+  renderArtworks();
 }
 
 function renderDrawHistory() {
@@ -3230,6 +3327,7 @@ async function addArtwork() {
   const cost = parseFloat(document.getElementById('new-artwork-cost').value) || 0;
   const year = document.getElementById('new-artwork-year').value.trim();
   const bio = document.getElementById('new-artwork-bio').value.trim();
+  const drawCategory = document.getElementById('new-artwork-drawcategory').value;
 
   if (!title) { toast('Tittel er påkrevd', true); return; }
   if (!artist) { toast('Kunstner er påkrevd', true); return; }
@@ -3261,9 +3359,10 @@ async function addArtwork() {
     cost,
     year,
     bio,
-    imagePath,   // path in Storage (for deletion)
-    imageUrl,    // public URL (for display)
-    image: null, // legacy — kept for backward compat with old data
+    drawCategory,  // 'A', 'B', or '' (unspecified)
+    imagePath,
+    imageUrl,
+    image: null,
     status: 'available',
     claimedBy: null,
     claimedAt: null,
@@ -3280,6 +3379,7 @@ async function addArtwork() {
   document.getElementById('new-artwork-cost').value = '';
   document.getElementById('new-artwork-year').value = '';
   document.getElementById('new-artwork-bio').value = '';
+  document.getElementById('new-artwork-drawcategory').value = 'A';
   document.getElementById('artwork-img-preview').style.display = 'none';
   document.getElementById('artwork-img-status').textContent = '';
   pendingArtworkImage = null;
@@ -3300,7 +3400,13 @@ function renderArtworks() {
   const filter = document.getElementById('artwork-filter')?.value || 'all';
 
   let items = [...(state.artworks || [])];
-  if (filter !== 'all') items = items.filter(a => a.status === filter);
+  if (filter === 'available' || filter === 'claimed' || filter === 'sold') {
+    items = items.filter(a => a.status === filter);
+  } else if (filter === 'draw-A') {
+    items = items.filter(a => a.drawCategory === 'A');
+  } else if (filter === 'draw-B') {
+    items = items.filter(a => a.drawCategory === 'B');
+  }
   if (search) {
     items = items.filter(a =>
       a.title.toLowerCase().includes(search) ||
@@ -3327,12 +3433,17 @@ function renderArtworks() {
     else if (a.status === 'claimed') badge = '<div class="artwork-status-badge claimed">Valgt</div>';
     else if (a.status === 'sold') badge = '<div class="artwork-status-badge sold">Solgt</div>';
 
+    // Draw category badge (top-left)
+    let drawBadge = '';
+    if (a.drawCategory === 'A') drawBadge = '<div class="artwork-status-badge" style="left:8px;right:auto;background:var(--gold);color:var(--ink);">A</div>';
+    else if (a.drawCategory === 'B') drawBadge = '<div class="artwork-status-badge" style="left:8px;right:auto;background:var(--ink);color:var(--paper);">B</div>';
+
     const dim = a.height && a.width ? `${a.height} × ${a.width} cm` : '';
     const src = artworkImageSrc(a);
     const imgStyle = src ? `style="background-image:url('${src}');"` : '';
     const imgCls = src ? '' : 'no-image';
     html += `<div class="artwork-card" onclick="openArtwork('${a.id}')">
-      <div class="artwork-card-img ${imgCls}" ${imgStyle}>${src ? '' : '+'}${badge}</div>
+      <div class="artwork-card-img ${imgCls}" ${imgStyle}>${src ? '' : '+'}${drawBadge}${badge}</div>
       <div class="artwork-card-body">
         <div class="artwork-card-title">${escape(a.title)}</div>
         <div class="artwork-card-artist">${escape(a.artist)}</div>
@@ -3366,6 +3477,8 @@ function openArtwork(id) {
   if (a.height && a.width) html += `<div><div class="label">Mål</div><div class="value">${a.height} × ${a.width} cm</div></div>`;
   if (a.acquired) html += `<div><div class="label">Anskaffet</div><div class="value">${fmtDate(a.acquired)}</div></div>`;
   if (a.cost) html += `<div><div class="label">Kostnad</div><div class="value">${fmt(a.cost)}</div></div>`;
+  if (a.drawCategory === 'A') html += `<div><div class="label">Til trekning</div><div class="value" style="color:var(--accent);">A-trekning</div></div>`;
+  else if (a.drawCategory === 'B') html += `<div><div class="label">Til trekning</div><div class="value">B-trekning</div></div>`;
   html += '</div>';
 
   if (a.bio) {
@@ -3439,6 +3552,11 @@ function openArtwork(id) {
       <div><label>Anskaffet</label><input type="date" id="edit-artwork-acquired" value="${a.acquired || ''}"></div>
       <div><label>Kostnad</label><input type="number" id="edit-artwork-cost" value="${a.cost || ''}"></div>
       <div><label>Årgang</label><input type="text" id="edit-artwork-year" value="${escape(a.year || '')}"></div>
+      <div><label>Til trekning</label><select id="edit-artwork-drawcategory">
+        <option value="A" ${a.drawCategory === 'A' ? 'selected' : ''}>A-trekning</option>
+        <option value="B" ${a.drawCategory === 'B' ? 'selected' : ''}>B-trekning</option>
+        <option value="" ${!a.drawCategory ? 'selected' : ''}>Ikke spesifisert</option>
+      </select></div>
     </div>
     <label>Fakta om kunstneren</label>
     <textarea id="edit-artwork-bio" rows="3">${escape(a.bio || '')}</textarea>
@@ -3495,6 +3613,7 @@ async function saveArtworkEdit() {
   a.cost = parseFloat(document.getElementById('edit-artwork-cost').value) || 0;
   a.year = document.getElementById('edit-artwork-year').value.trim();
   a.bio = document.getElementById('edit-artwork-bio').value.trim();
+  a.drawCategory = document.getElementById('edit-artwork-drawcategory').value;
 
   // Handle pending image swap
   if (pendingEditImage) {
@@ -3982,6 +4101,7 @@ window.resetDraw = resetDraw;
 window.toggleDrawActive = toggleDrawActive;
 window.deleteDraw = deleteDraw;
 window.switchDrawType = switchDrawType;
+window.pickArtworkForDraw = pickArtworkForDraw;
 window.saveSettings = saveSettings;
 window.exportData = exportData;
 window.importData = importData;
