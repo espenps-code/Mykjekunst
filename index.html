@@ -1050,6 +1050,44 @@
       </div>
       <div id="expenses-list"></div>
     </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Registrer <em>annen inntekt</em></div>
+      </div>
+      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Inntekter som ikke er knyttet til et medlem — f.eks. renteinntekt, gaver eller refusjoner.</p>
+      <div class="form-grid">
+        <div>
+          <label>Dato</label>
+          <input type="date" id="inc-date">
+        </div>
+        <div>
+          <label>Beskrivelse</label>
+          <input type="text" id="inc-desc" placeholder="f.eks. Renter Q4 2025">
+        </div>
+        <div>
+          <label>Kategori</label>
+          <select id="inc-category">
+            <option>Renteinntekt</option>
+            <option>Gave</option>
+            <option>Refusjon</option>
+            <option>Annet</option>
+          </select>
+        </div>
+        <div>
+          <label>Beløp (kr)</label>
+          <input type="number" id="inc-amount" placeholder="0">
+        </div>
+      </div>
+      <button class="btn" onclick="addOtherIncome()">Legg til inntekt</button>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Andre <em>inntekter</em></div>
+      </div>
+      <div id="other-income-list"></div>
+    </div>
   </div>
 
   <!-- ARTWORKS -->
@@ -1176,6 +1214,7 @@
         <button class="btn btn-secondary" onclick="exportCSV('members')">Medlemsliste</button>
         <button class="btn btn-secondary" onclick="exportCSV('payments')">Innbetalinger</button>
         <button class="btn btn-secondary" onclick="exportCSV('expenses')">Utgifter</button>
+        <button class="btn btn-secondary" onclick="exportCSV('income')">Andre inntekter</button>
         <button class="btn btn-secondary" onclick="exportCSV('summary')">Sammendrag</button>
       </div>
     </div>
@@ -1332,12 +1371,14 @@ let state = {
   expenses: [],
   draws: [],
   artworks: [],
+  otherIncome: [],
   parsedTx: []
 };
 
 let currentMemberId = null;
 let currentArtworkId = null;
 let editingExpenseId = null;
+let editingIncomeId = null;
 let pendingArtworkImage = null;
 let pendingEditImage = null;
 let labelPrintSelection = new Set();
@@ -1436,6 +1477,7 @@ function subscribeToData() {
             expenses: data.expenses || [],
             draws: data.draws || [],
             artworks: data.artworks || [],
+            otherIncome: data.otherIncome || [],
             parsedTx: data.parsedTx || []
           };
           if (!firstLoad) {
@@ -1469,6 +1511,7 @@ function save() {
         expenses: state.expenses,
         draws: state.draws,
         artworks: state.artworks,
+        otherIncome: state.otherIncome,
         parsedTx: state.parsedTx,
         _writtenAt: Date.now()
       });
@@ -2460,6 +2503,105 @@ function deleteExpense(id) {
   renderAll();
 }
 
+// ===== Other income (renter, gaver, refusjoner) =====
+function addOtherIncome() {
+  const date = document.getElementById('inc-date').value || new Date().toISOString().slice(0, 10);
+  const desc = document.getElementById('inc-desc').value.trim();
+  const cat = document.getElementById('inc-category').value;
+  const amount = parseFloat(document.getElementById('inc-amount').value);
+  if (!desc) { toast('Skriv beskrivelse', true); return; }
+  if (!amount || amount <= 0) { toast('Ugyldig beløp', true); return; }
+  if (!state.otherIncome) state.otherIncome = [];
+  state.otherIncome.push({ id: uid(), date, description: desc, category: cat, amount });
+  save();
+  document.getElementById('inc-desc').value = '';
+  document.getElementById('inc-amount').value = '';
+  toast('Inntekt registrert');
+  renderAll();
+}
+
+function deleteOtherIncome(id) {
+  if (!confirm('Slette denne inntekten?')) return;
+  state.otherIncome = (state.otherIncome || []).filter(i => i.id !== id);
+  save();
+  renderAll();
+}
+
+function startIncomeEdit(id) {
+  editingIncomeId = id;
+  renderOtherIncome();
+  setTimeout(() => {
+    const el = document.getElementById('edit-inc-desc-' + id);
+    if (el) { el.focus(); el.select(); }
+  }, 50);
+}
+
+function cancelIncomeEdit() {
+  editingIncomeId = null;
+  renderOtherIncome();
+}
+
+function saveIncomeEdit(id) {
+  const i = (state.otherIncome || []).find(x => x.id === id);
+  if (!i) return;
+  const newDate = document.getElementById('edit-inc-date-' + id).value;
+  const newDesc = document.getElementById('edit-inc-desc-' + id).value.trim();
+  const newCat = document.getElementById('edit-inc-cat-' + id).value;
+  const newAmt = parseFloat(document.getElementById('edit-inc-amt-' + id).value);
+  if (!newDesc) { toast('Beskrivelse kan ikke være tom', true); return; }
+  if (!newAmt || newAmt <= 0) { toast('Ugyldig beløp', true); return; }
+  i.date = newDate || i.date;
+  i.description = newDesc;
+  i.category = newCat;
+  i.amount = newAmt;
+  editingIncomeId = null;
+  save();
+  toast('Inntekt oppdatert');
+  renderAll();
+}
+
+function renderOtherIncome() {
+  const list = document.getElementById('other-income-list');
+  if (!list) return;
+  const items = state.otherIncome || [];
+  if (items.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">Ingen andre inntekter</div></div>';
+    return;
+  }
+  const sorted = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
+  let html = '<table><thead><tr><th>Dato</th><th>Beskrivelse</th><th>Kategori</th><th class="num">Beløp</th><th></th></tr></thead><tbody>';
+  const categories = ['Renteinntekt','Gave','Refusjon','Annet'];
+  sorted.forEach(i => {
+    if (editingIncomeId === i.id) {
+      html += `<tr style="background:var(--paper-deep);">
+        <td><input type="date" id="edit-inc-date-${i.id}" value="${i.date}" style="font-size:13px;padding:6px 8px;"></td>
+        <td><input type="text" id="edit-inc-desc-${i.id}" value="${escape(i.description)}" style="font-size:13px;padding:6px 8px;"></td>
+        <td><select id="edit-inc-cat-${i.id}" style="font-size:13px;padding:6px 8px;">
+          ${categories.map(c => `<option ${i.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+        </select></td>
+        <td class="num"><input type="number" id="edit-inc-amt-${i.id}" value="${i.amount}" style="font-size:13px;padding:6px 8px;text-align:right;"></td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-small" onclick="saveIncomeEdit('${i.id}')">Lagre</button>
+          <button class="btn btn-secondary btn-small" onclick="cancelIncomeEdit()" style="margin-left:4px;">Avbryt</button>
+        </td>
+      </tr>`;
+    } else {
+      html += `<tr>
+        <td>${fmtDate(i.date)}</td>
+        <td>${escape(i.description)}</td>
+        <td><span class="badge" style="background:var(--green);color:white;">${escape(i.category)}</span></td>
+        <td class="num" style="color:var(--green);">+${fmt(i.amount)}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-secondary btn-small" onclick="startIncomeEdit('${i.id}')">Rediger</button>
+          <button class="btn btn-danger btn-small" onclick="deleteOtherIncome('${i.id}')" style="margin-left:4px;">×</button>
+        </td>
+      </tr>`;
+    }
+  });
+  html += '</tbody></table>';
+  list.innerHTML = html;
+}
+
 function renderExpenses() {
   const list = document.getElementById('expenses-list');
   if (state.expenses.length === 0) {
@@ -2546,6 +2688,7 @@ function renderReports() {
   const allYears = new Set();
   state.payments.forEach(p => allYears.add(new Date(p.date).getFullYear()));
   state.expenses.forEach(e => allYears.add(new Date(e.date).getFullYear()));
+  (state.otherIncome || []).forEach(i => allYears.add(new Date(i.date).getFullYear()));
   allYears.add(new Date().getFullYear());
   const years = [...allYears].sort((a, b) => b - a);
   const currentVal = yearSel.value || years[0];
@@ -2554,7 +2697,10 @@ function renderReports() {
 
   const yearPayments = state.payments.filter(p => new Date(p.date).getFullYear() === selectedYear);
   const yearExpenses = state.expenses.filter(e => new Date(e.date).getFullYear() === selectedYear);
-  const totalIn = yearPayments.reduce((s, p) => s + p.amount, 0);
+  const yearOtherIncome = (state.otherIncome || []).filter(i => new Date(i.date).getFullYear() === selectedYear);
+  const memberIn = yearPayments.reduce((s, p) => s + p.amount, 0);
+  const otherIn = yearOtherIncome.reduce((s, i) => s + i.amount, 0);
+  const totalIn = memberIn + otherIn;
   const totalOut = yearExpenses.reduce((s, e) => s + e.amount, 0);
   const depositTotal = yearPayments.filter(p => p.type === 'deposit').reduce((s, p) => s + p.amount, 0);
   const monthlyTotal = yearPayments.filter(p => p.type === 'monthly').reduce((s, p) => s + p.amount, 0);
@@ -2563,9 +2709,14 @@ function renderReports() {
   const byCat = {};
   yearExpenses.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + e.amount; });
 
-  // Monthly breakdown
+  // Other income by category
+  const otherByCat = {};
+  yearOtherIncome.forEach(i => { otherByCat[i.category] = (otherByCat[i.category] || 0) + i.amount; });
+
+  // Monthly breakdown (in includes both member payments and other income)
   const monthlyTotals = Array(12).fill(0).map(() => ({ in: 0, out: 0 }));
   yearPayments.forEach(p => { monthlyTotals[new Date(p.date).getMonth()].in += p.amount; });
+  yearOtherIncome.forEach(i => { monthlyTotals[new Date(i.date).getMonth()].in += i.amount; });
   yearExpenses.forEach(e => { monthlyTotals[new Date(e.date).getMonth()].out += e.amount; });
 
   let html = `
@@ -2575,8 +2726,17 @@ function renderReports() {
       <div><div class="stat-label">Netto</div><div style="font-family:'Fraunces',serif;font-size:24px;">${fmt(totalIn - totalOut)}</div></div>
       <div><div class="stat-label">Innskudd</div><div style="font-family:'Fraunces',serif;font-size:24px;">${fmt(depositTotal)}</div></div>
       <div><div class="stat-label">Månedsbidrag</div><div style="font-family:'Fraunces',serif;font-size:24px;">${fmt(monthlyTotal)}</div></div>
+      ${otherIn > 0 ? `<div><div class="stat-label">Annen inntekt</div><div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);">${fmt(otherIn)}</div></div>` : ''}
     </div>
   `;
+
+  if (Object.keys(otherByCat).length > 0) {
+    html += '<div style="margin-top:24px;"><label>Andre inntekter per kategori</label><table style="margin-top:8px;"><tbody>';
+    Object.entries(otherByCat).sort((a,b) => b[1]-a[1]).forEach(([cat, amt]) => {
+      html += `<tr><td><span class="badge" style="background:var(--green);color:white;">${escape(cat)}</span></td><td class="num">${fmt(amt)}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
 
   if (Object.keys(byCat).length > 0) {
     html += '<div style="margin-top:24px;"><label>Utgifter per kategori</label><table style="margin-top:8px;"><tbody>';
@@ -2624,13 +2784,23 @@ function exportCSV(type) {
       csv += `${e.date};"${e.description.replace(/"/g, '""')}";"${e.category}";${e.amount}\n`;
     });
     filename = 'utgifter';
+  } else if (type === 'income') {
+    csv = 'Dato;Beskrivelse;Kategori;Beløp\n';
+    [...(state.otherIncome || [])].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(i => {
+      csv += `${i.date};"${i.description.replace(/"/g, '""')}";"${i.category}";${i.amount}\n`;
+    });
+    filename = 'andre-inntekter';
   } else if (type === 'summary') {
-    const totalIn = state.payments.reduce((s,p) => s + p.amount, 0);
+    const memberIn = state.payments.reduce((s,p) => s + p.amount, 0);
+    const otherIn = (state.otherIncome || []).reduce((s,i) => s + i.amount, 0);
+    const totalIn = memberIn + otherIn;
     const totalOut = state.expenses.reduce((s,e) => s + e.amount, 0);
     csv = 'Felt;Verdi\n';
     csv += `Klubbnavn;"${state.settings.name}"\n`;
     csv += `Startsaldo;${state.settings.opening || 0}\n`;
     csv += `Antall medlemmer;${state.members.length}\n`;
+    csv += `Innskudd + månedsbidrag;${memberIn}\n`;
+    csv += `Annen inntekt (renter mm);${otherIn}\n`;
     csv += `Totalt inn;${totalIn}\n`;
     csv += `Totalt ut;${totalOut}\n`;
     csv += `Kassebeholdning;${(state.settings.opening || 0) + totalIn - totalOut}\n`;
@@ -3534,7 +3704,9 @@ function renderA6Label(a) {
 
 // ============ DASHBOARD ============
 function renderDashboard() {
-  const income = state.payments.reduce((s, p) => s + p.amount, 0);
+  const memberIncome = state.payments.reduce((s, p) => s + p.amount, 0);
+  const otherIncome = (state.otherIncome || []).reduce((s, i) => s + i.amount, 0);
+  const income = memberIncome + otherIncome;
   const expenses = state.expenses.reduce((s, e) => s + e.amount, 0);
   const balance = (state.settings.opening || 0) + income - expenses;
   document.getElementById('stat-balance').textContent = fmt(balance);
@@ -3542,6 +3714,15 @@ function renderDashboard() {
   document.getElementById('stat-members').textContent = state.members.length;
   document.getElementById('stat-members-sub').textContent = state.members.filter(m => m.active !== false).length + ' aktive';
   document.getElementById('stat-income').textContent = fmt(income);
+  const incomeSub = document.getElementById('stat-balance').parentElement.querySelector('.stat-sub');
+  // Update income sub-text if other income exists
+  const incomeStatEl = document.getElementById('stat-income');
+  const incomeSubEl = incomeStatEl ? incomeStatEl.parentElement.querySelector('.stat-sub') : null;
+  if (incomeSubEl) {
+    incomeSubEl.textContent = otherIncome > 0
+      ? `inkl. ${fmt(otherIncome)} annen inntekt`
+      : 'innskudd + månedsbidrag';
+  }
   document.getElementById('stat-expenses').textContent = fmt(expenses);
 
   const monthNames = ['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember'];
@@ -3573,7 +3754,8 @@ function renderDashboard() {
 
   const activity = [
     ...state.payments.map(p => ({ date: p.date, kind: 'payment', data: p })),
-    ...state.expenses.map(e => ({ date: e.date, kind: 'expense', data: e }))
+    ...state.expenses.map(e => ({ date: e.date, kind: 'expense', data: e })),
+    ...(state.otherIncome || []).map(i => ({ date: i.date, kind: 'otherIncome', data: i }))
   ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
 
   if (activity.length === 0) {
@@ -3584,6 +3766,8 @@ function renderDashboard() {
       if (a.kind === 'payment') {
         const m = state.members.find(x => x.id === a.data.memberId);
         html += `<tr><td>${fmtDate(a.date)}</td><td>${m ? escape(m.name) : 'Ukjent'} — ${a.data.type === 'deposit' ? 'innskudd' : a.data.type === 'monthly' ? 'månedsbidrag' : 'annet'}</td><td class="num" style="color:var(--green);">+${fmt(a.data.amount)}</td></tr>`;
+      } else if (a.kind === 'otherIncome') {
+        html += `<tr><td>${fmtDate(a.date)}</td><td>${escape(a.data.description)} <span class="badge" style="background:var(--green);color:white;">${escape(a.data.category)}</span></td><td class="num" style="color:var(--green);">+${fmt(a.data.amount)}</td></tr>`;
       } else {
         html += `<tr><td>${fmtDate(a.date)}</td><td>${escape(a.data.description)} <span class="badge badge-neutral">${escape(a.data.category)}</span></td><td class="num" style="color:var(--accent);">−${fmt(a.data.amount)}</td></tr>`;
       }
@@ -3654,6 +3838,7 @@ function resetAll() {
   state.expenses = [];
   state.draws = [];
   state.artworks = [];
+  state.otherIncome = [];
   state.parsedTx = [];
   save();
   renderAll();
@@ -3702,6 +3887,7 @@ function renderAll() {
   renderPayments();
   renderParsedTx();
   renderExpenses();
+  renderOtherIncome();
   renderArtworks();
   renderReports();
   renderDrawParticipants();
@@ -3735,6 +3921,8 @@ window.addEventListener('load', () => {
 
   document.getElementById('new-member-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('exp-date').value = new Date().toISOString().slice(0, 10);
+  const incDateEl = document.getElementById('inc-date');
+  if (incDateEl) incDateEl.value = new Date().toISOString().slice(0, 10);
 
   // Artwork image drag-drop
   const artDz = document.getElementById('artwork-img-upload');
@@ -3783,6 +3971,11 @@ window.deleteExpense = deleteExpense;
 window.startExpenseEdit = startExpenseEdit;
 window.cancelExpenseEdit = cancelExpenseEdit;
 window.saveExpenseEdit = saveExpenseEdit;
+window.addOtherIncome = addOtherIncome;
+window.deleteOtherIncome = deleteOtherIncome;
+window.startIncomeEdit = startIncomeEdit;
+window.cancelIncomeEdit = cancelIncomeEdit;
+window.saveIncomeEdit = saveIncomeEdit;
 window.startDraw = startDraw;
 window.resetDraw = resetDraw;
 window.toggleDrawActive = toggleDrawActive;
