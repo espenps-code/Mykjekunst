@@ -399,7 +399,7 @@
   .draw-stage {
     background: var(--ink);
     color: var(--paper);
-    padding: 48px;
+    padding: 56px 48px;
     text-align: center;
     margin-bottom: 24px;
     position: relative;
@@ -412,6 +412,17 @@
     border: 1px solid var(--gold);
     pointer-events: none;
   }
+  .draw-stage::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(184,153,104,0.15) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.5s;
+    pointer-events: none;
+  }
+  .draw-stage.spinning::after { opacity: 1; }
+  .draw-stage.winner::after { opacity: 1; background: radial-gradient(circle at 50% 50%, rgba(184,153,104,0.35) 0%, transparent 70%); }
   .draw-name {
     font-family: 'Fraunces', serif;
     font-size: 56px;
@@ -420,6 +431,13 @@
     color: var(--gold);
     min-height: 80px;
     line-height: 1;
+    position: relative;
+    z-index: 1;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .draw-name.winner-reveal {
+    transform: scale(1.1);
+    text-shadow: 0 0 30px rgba(184,153,104,0.5);
   }
   .draw-label {
     font-size: 11px;
@@ -427,12 +445,65 @@
     letter-spacing: 0.2em;
     color: rgba(245,241,232,0.6);
     margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
   }
-  @keyframes spin {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+  .draw-type-badge {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    margin-top: 20px;
+    font-weight: 600;
+    position: relative;
+    z-index: 1;
   }
-  .draw-name.spinning { animation: spin 0.1s infinite; }
+  @keyframes blur-spin {
+    0% { filter: blur(0); opacity: 1; }
+    50% { filter: blur(2px); opacity: 0.7; }
+    100% { filter: blur(0); opacity: 1; }
+  }
+  .draw-name.spinning { animation: blur-spin 0.15s infinite; }
+  @keyframes confetti-fall {
+    0% { transform: translateY(-100px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(400px) rotate(720deg); opacity: 0; }
+  }
+  .confetti {
+    position: absolute;
+    width: 8px;
+    height: 14px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* Draw type tabs */
+  .draw-type-btn.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .eligibility-card {
+    background: var(--paper-deep);
+    border: 1px solid var(--line);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .eligibility-card strong { color: var(--ink); font-weight: 600; }
+  .member-excluded {
+    opacity: 0.5;
+    text-decoration: line-through;
+  }
+  .exclusion-note {
+    font-size: 10px;
+    color: var(--accent);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
 
   .member-row { cursor: pointer; }
   .month-grid {
@@ -664,11 +735,11 @@
       <div class="section-header">
         <div class="section-title">Last opp <em>kontoutskrift</em></div>
       </div>
-      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Last opp PDF fra nettbanken. Systemet leser ut transaksjoner og foreslår matching mot medlemmer.</p>
-      <div class="dropzone" id="dropzone" onclick="document.getElementById('pdfFile').click()">
+      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Last opp fil fra nettbanken: <strong>CSV/TXT</strong> anbefales (mest presist), eller PDF som backup. Systemet leser ut transaksjoner og foreslår matching mot medlemmer.</p>
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('importFileImport').click()">
         <div class="dropzone-icon">+</div>
-        <div class="dropzone-text">Klikk eller dra PDF hit</div>
-        <input type="file" id="pdfFile" accept=".pdf" style="display:none" onchange="handlePDF(event)">
+        <div class="dropzone-text">Klikk eller dra fil hit<br><span style="font-size:12px;">CSV, TXT eller PDF</span></div>
+        <input type="file" id="importFileImport" accept=".csv,.txt,.pdf" style="display:none" onchange="handleImportFile(event)">
       </div>
       <div id="pdf-status" style="margin-top:16px;"></div>
     </div>
@@ -766,12 +837,18 @@
     <div class="section">
       <div class="section-header">
         <div class="section-title">Trekning ved <em>skoleslutt</em></div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary btn-small draw-type-btn active" id="draw-tab-A" onclick="switchDrawType('A')">A-trekning</button>
+          <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-B" onclick="switchDrawType('B')">B-trekning</button>
+        </div>
       </div>
-      <p style="color:var(--muted);margin-bottom:20px;font-size:14px;">Velg hvem som skal være med i trekningen. Som standard er alle aktive medlemmer med.</p>
+
+      <p style="color:var(--muted);margin-bottom:20px;font-size:14px;" id="draw-description"></p>
 
       <div class="draw-stage">
-        <div class="draw-label">Vinneren er</div>
+        <div class="draw-label" id="draw-stage-label">Vinneren er</div>
         <div class="draw-name" id="draw-name">—</div>
+        <div class="draw-type-badge" id="draw-type-badge">A-trekning</div>
       </div>
 
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
@@ -780,7 +857,8 @@
       </div>
 
       <div style="margin-top:32px;">
-        <label style="margin-bottom:12px;">Deltakere</label>
+        <label style="margin-bottom:12px;" id="draw-participants-label">Deltakere</label>
+        <div id="draw-eligibility-info"></div>
         <div id="draw-participants"></div>
       </div>
 
@@ -1149,16 +1227,40 @@ function openMember(id) {
   });
   const deposit = memberPayments.filter(p => p.type === 'deposit').reduce((s, p) => s + p.amount, 0);
   const totalContributed = memberPayments.reduce((s, p) => s + p.amount, 0);
+  const activeStatus = m.active !== false;
 
   let html = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
-      <div><div class="stat-label">Innmeldt</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmtDate(m.joinDate)}</div></div>
-      <div><div class="stat-label">Innskudd</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmt(deposit)}</div></div>
-      <div><div class="stat-label">Totalt bidratt</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmt(totalContributed)}</div></div>
+    <div id="member-edit-view" style="display:none;">
+      <label>Navn</label>
+      <input type="text" id="edit-member-name" value="${escape(m.name)}" style="margin-bottom:12px;">
+      <label>Innmeldingsdato</label>
+      <input type="date" id="edit-member-date" value="${m.joinDate || ''}" style="margin-bottom:12px;">
+      <label>Notat</label>
+      <input type="text" id="edit-member-note" value="${escape(m.note || '')}" placeholder="f.eks. konto-referanse" style="margin-bottom:12px;">
+      <label style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink);font-size:14px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:16px;">
+        <input type="checkbox" id="edit-member-active" ${activeStatus ? 'checked' : ''} style="width:auto;">
+        Aktivt medlem (med i trekninger og månedlig status)
+      </label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-small" onclick="saveMemberEdit()">Lagre endringer</button>
+        <button class="btn btn-secondary btn-small" onclick="cancelMemberEdit()">Avbryt</button>
+      </div>
     </div>
-    <div>
-      <label>Måneder dette skoleåret</label>
-      <div class="month-grid">
+
+    <div id="member-view">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;flex:1;">
+          <div><div class="stat-label">Innmeldt</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmtDate(m.joinDate)}</div></div>
+          <div><div class="stat-label">Innskudd</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmt(deposit)}</div></div>
+          <div><div class="stat-label">Totalt bidratt</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmt(totalContributed)}</div></div>
+        </div>
+        <button class="btn btn-secondary btn-small" onclick="startMemberEdit()" style="margin-left:12px;">Rediger</button>
+      </div>
+      ${m.note ? `<div style="background:var(--paper-deep);padding:10px 12px;font-size:13px;color:var(--muted);margin-bottom:16px;"><strong style="color:var(--ink);">Notat:</strong> ${escape(m.note)}</div>` : ''}
+      ${!activeStatus ? `<div style="background:var(--paper-deep);padding:10px 12px;font-size:13px;color:var(--accent);margin-bottom:16px;"><strong>Inaktivt medlem</strong> — utelukket fra trekninger og månedlig status.</div>` : ''}
+      <div>
+        <label>Måneder dette skoleåret</label>
+        <div class="month-grid">
   `;
   const monthNames = ['Jan','Feb','Mar','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Des'];
   months.forEach(mk => {
@@ -1194,8 +1296,44 @@ function openMember(id) {
     <button class="btn btn-small" onclick="addManualPayment('${id}')">Legg til</button>
   </div>`;
 
+  html += '</div>'; // close member-view
+
   document.getElementById('modal-member-content').innerHTML = html;
   document.getElementById('member-modal').classList.add('show');
+}
+
+function startMemberEdit() {
+  document.getElementById('member-view').style.display = 'none';
+  document.getElementById('member-edit-view').style.display = 'block';
+  document.getElementById('edit-member-name').focus();
+}
+
+function cancelMemberEdit() {
+  document.getElementById('member-edit-view').style.display = 'none';
+  document.getElementById('member-view').style.display = 'block';
+}
+
+function saveMemberEdit() {
+  if (!currentMemberId) return;
+  const m = state.members.find(x => x.id === currentMemberId);
+  if (!m) return;
+
+  const newName = document.getElementById('edit-member-name').value.trim();
+  const newDate = document.getElementById('edit-member-date').value;
+  const newNote = document.getElementById('edit-member-note').value.trim();
+  const newActive = document.getElementById('edit-member-active').checked;
+
+  if (!newName) { toast('Navn kan ikke være tomt', true); return; }
+
+  m.name = newName;
+  m.joinDate = newDate || m.joinDate;
+  m.note = newNote;
+  m.active = newActive;
+
+  save();
+  toast('Endringer lagret');
+  openMember(currentMemberId); // refresh view
+  renderAll();
 }
 
 function closeMemberModal() {
@@ -1252,6 +1390,162 @@ function toggleMonth(memberId, mk) {
   save();
   openMember(memberId);
   renderAll();
+}
+
+// ============ FILE IMPORT (CSV/TXT/PDF) ============
+async function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv') || name.endsWith('.txt')) {
+    await handleCSV(file);
+    e.target.value = '';
+  } else if (name.endsWith('.pdf')) {
+    await handlePDF(e);
+  } else {
+    document.getElementById('pdf-status').innerHTML = '<div style="color:var(--accent);">Ukjent filtype. Bruk CSV, TXT eller PDF.</div>';
+    e.target.value = '';
+  }
+}
+
+async function handleCSV(file) {
+  document.getElementById('pdf-status').innerHTML = '<div style="color:var(--muted);">Leser fil …</div>';
+  try {
+    // Read file as text. Try UTF-8 first, fall back to latin1 if needed.
+    let text = await file.text();
+    // Detect mojibake (typical from Windows-1252/latin1 read as utf-8)
+    if (text.includes('Ã¦') || text.includes('Ã¸') || text.includes('Ã¥') || text.includes('\uFFFD')) {
+      // Re-read as latin1
+      const buf = await file.arrayBuffer();
+      const decoder = new TextDecoder('windows-1252');
+      text = decoder.decode(buf);
+    }
+    const txs = parseBankCSV(text);
+    if (txs.length === 0) {
+      document.getElementById('pdf-status').innerHTML = '<div style="color:var(--accent);">Fant ingen transaksjoner. Sjekk at filen er en kontoutskrift med kolonner som "Dato", "Beløp" eller "Inn på konto".</div>';
+      return;
+    }
+    state.parsedTx = txs;
+    save();
+    document.getElementById('pdf-status').innerHTML = '<div style="color:var(--green);font-weight:600;">✓ Fant ' + txs.length + ' innbetalinger.</div>';
+    renderParsedTx();
+  } catch (err) {
+    console.error(err);
+    document.getElementById('pdf-status').innerHTML = '<div style="color:var(--accent);">Kunne ikke lese filen: ' + err.message + '</div>';
+  }
+}
+
+// Parse a CSV line that may have quoted fields containing the delimiter
+function parseCSVLine(line, delimiter) {
+  const fields = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === delimiter) { fields.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  fields.push(cur);
+  return fields.map(f => f.trim());
+}
+
+function parseBankCSV(text) {
+  const txs = [];
+  // Detect delimiter: count occurrences in header line
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length < 2) return txs;
+  const first = lines[0];
+  const delimiter = (first.match(/;/g) || []).length >= (first.match(/,/g) || []).length ? ';' : ',';
+
+  // Parse header to find column positions
+  const header = parseCSVLine(lines[0], delimiter).map(h => h.toLowerCase().trim());
+
+  // Find column indices flexibly
+  const findCol = (...names) => {
+    for (const n of names) {
+      const idx = header.findIndex(h => h.includes(n));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+
+  const dateIdx = findCol('dato', 'date');
+  const descIdx = findCol('forklaring', 'beskrivelse', 'tekst', 'description', 'melding');
+  const inIdx = findCol('inn på konto', 'inn pa konto', 'innbetalt', 'kredit', 'credit', 'inn');
+  const outIdx = findCol('ut fra konto', 'utbetalt', 'debet', 'debit', 'ut');
+  const amountIdx = findCol('beløp', 'belop', 'amount', 'sum');
+
+  if (dateIdx < 0) {
+    console.warn('No date column found in CSV header:', header);
+    return txs;
+  }
+
+  for (let i = 1; i < lines.length; i++) {
+    const fields = parseCSVLine(lines[i], delimiter);
+    if (fields.length < 2) continue;
+
+    const dateStr = fields[dateIdx] || '';
+    const desc = (descIdx >= 0 ? fields[descIdx] : '') || '';
+
+    // Determine amount: prefer "inn på konto" column if exists, fallback to single amount column
+    let amount = null;
+    if (inIdx >= 0) {
+      const inVal = parseAmount(fields[inIdx]);
+      const outVal = outIdx >= 0 ? parseAmount(fields[outIdx]) : null;
+      // Only treat as income if "in" has a value and "out" is empty
+      if (inVal && inVal > 0 && (!outVal || outVal === 0)) {
+        amount = inVal;
+      }
+    } else if (amountIdx >= 0) {
+      const amt = parseAmount(fields[amountIdx]);
+      if (amt && amt > 0) amount = amt;
+    }
+
+    if (!amount) continue;
+
+    // Parse date: dd.mm.yyyy or yyyy-mm-dd or dd/mm/yyyy
+    const date = parseFlexDate(dateStr);
+    if (!date) continue;
+
+    txs.push({
+      date,
+      amount,
+      description: desc.replace(/\s+/g, ' ').trim().slice(0, 200),
+      rawLine: lines[i]
+    });
+  }
+
+  return txs;
+}
+
+function parseAmount(s) {
+  if (!s) return null;
+  // Remove spaces, handle Norwegian format: "1 234,56" or "1.234,56" or just "1000"
+  const cleaned = String(s).replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? null : n;
+}
+
+function parseFlexDate(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  // dd.mm.yyyy
+  let m = s.match(/^(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // dd.mm.yy
+  m = s.match(/^(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{2})$/);
+  if (m) return `20${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // yyyy-mm-dd
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return null;
 }
 
 // ============ PDF IMPORT ============
@@ -1634,67 +1928,272 @@ function exportCSV(type) {
 
 // ============ DRAW ============
 let drawTimer = null;
+let currentDrawType = 'A';
+
+function switchDrawType(type) {
+  currentDrawType = type;
+  document.getElementById('draw-tab-A').classList.toggle('active', type === 'A');
+  document.getElementById('draw-tab-B').classList.toggle('active', type === 'B');
+  document.getElementById('draw-type-badge').textContent = type + '-trekning';
+  resetDraw();
+  renderDrawParticipants();
+}
+
+// Calculate which members are excluded from A-draw because they've won within last 3 years
+function getAWinnersWithinYears(yearsBack) {
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear() - yearsBack, now.getMonth(), now.getDate());
+  const winners = {};
+  state.draws.forEach(d => {
+    if (d.type !== 'A') return; // only A-draws count for exclusion
+    const drawDate = new Date(d.date);
+    if (drawDate >= cutoff) {
+      if (!winners[d.winnerId] || drawDate > new Date(winners[d.winnerId].date)) {
+        winners[d.winnerId] = { date: d.date, drawId: d.id };
+      }
+    }
+  });
+  return winners;
+}
+
+function getEligibleParticipants(type) {
+  // Active members only
+  const active = state.members.filter(m => m.active !== false);
+  if (type === 'B') return { eligible: active, excluded: {} };
+
+  // For A-draw: exclude anyone who won an A-draw in last 3 years
+  const recentAWinners = getAWinnersWithinYears(3);
+  const eligible = active.filter(m => !recentAWinners[m.id]);
+  return { eligible, excluded: recentAWinners };
+}
+
 function renderDrawParticipants() {
   const wrap = document.getElementById('draw-participants');
+  const infoEl = document.getElementById('draw-eligibility-info');
+  const descEl = document.getElementById('draw-description');
+
+  if (currentDrawType === 'A') {
+    descEl.innerHTML = 'Hovedtrekningen. <strong>Et medlem kan kun vinne A-trekningen én gang per 3 år.</strong> Tidligere vinnere innenfor 3-årsperioden er automatisk utelukket.';
+  } else {
+    descEl.innerHTML = 'Sekundærtrekningen. Alle aktive medlemmer kan vinne B-trekningen hvert år, uavhengig av tidligere seire.';
+  }
+
   if (state.members.length === 0) {
     wrap.innerHTML = '<div style="color:var(--muted);font-size:14px;">Ingen medlemmer å trekke fra.</div>';
+    infoEl.innerHTML = '';
     return;
   }
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">';
+
+  const { eligible, excluded } = getEligibleParticipants(currentDrawType);
+  const excludedCount = Object.keys(excluded).length;
+
+  // Info card
+  let infoHtml = '';
+  if (currentDrawType === 'A' && excludedCount > 0) {
+    infoHtml = `<div class="eligibility-card">
+      <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--accent);font-style:italic;">${excludedCount}</div>
+      <div>
+        <div><strong>medlemmer utelukket fra A-trekning</strong></div>
+        <div style="margin-top:2px;">Disse har vunnet A-trekning innen siste 3 år. ${eligible.length} medlemmer er kvalifisert.</div>
+      </div>
+    </div>`;
+  } else if (currentDrawType === 'A') {
+    infoHtml = `<div class="eligibility-card">
+      <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);font-style:italic;">${eligible.length}</div>
+      <div>
+        <div><strong>medlemmer kvalifisert</strong></div>
+        <div style="margin-top:2px;">Ingen er utelukket på grunn av tidligere A-seire.</div>
+      </div>
+    </div>`;
+  } else {
+    infoHtml = `<div class="eligibility-card">
+      <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);font-style:italic;">${eligible.length}</div>
+      <div>
+        <div><strong>medlemmer med</strong></div>
+        <div style="margin-top:2px;">Alle aktive medlemmer kan vinne B-trekningen.</div>
+      </div>
+    </div>`;
+  }
+  infoEl.innerHTML = infoHtml;
+
+  // Participants list
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">';
   state.members.forEach(m => {
-    const checked = m.active !== false ? 'checked' : '';
-    html += `<label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--paper-deep);cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:400;">
-      <input type="checkbox" id="draw-chk-${m.id}" ${checked} onchange="toggleDrawActive('${m.id}', this.checked)" style="width:auto;">
-      <span>${escape(m.name)}</span>
+    const isActive = m.active !== false;
+    const exclusion = excluded[m.id];
+    const isExcluded = !!exclusion;
+    const disabled = isExcluded ? 'disabled' : '';
+    const checked = isActive && !isExcluded ? 'checked' : '';
+    const cls = isExcluded ? 'member-excluded' : '';
+
+    let exclusionNote = '';
+    if (isExcluded) {
+      const winYear = new Date(exclusion.date).getFullYear();
+      exclusionNote = `<div class="exclusion-note">Vant A i ${winYear}</div>`;
+    }
+
+    html += `<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--paper-deep);${isExcluded ? '' : 'cursor:pointer;'}text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:400;" class="${cls}">
+      <input type="checkbox" ${checked} ${disabled} onchange="toggleDrawActive('${m.id}', this.checked)" style="width:auto;margin-top:3px;">
+      <span style="flex:1;">${escape(m.name)}${exclusionNote}</span>
     </label>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
 }
+
 function toggleDrawActive(id, checked) {
   const m = state.members.find(x => x.id === id);
   if (m) { m.active = checked; save(); }
 }
+
 function startDraw() {
-  const participants = state.members.filter(m => m.active !== false);
-  if (participants.length === 0) { toast('Ingen deltakere valgt', true); return; }
+  // For A: only eligible (non-excluded), active members
+  // For B: all active members
+  const active = state.members.filter(m => m.active !== false);
+  let participants;
+  if (currentDrawType === 'A') {
+    const { eligible } = getEligibleParticipants('A');
+    participants = eligible.filter(m => m.active !== false);
+  } else {
+    participants = active;
+  }
+
+  if (participants.length === 0) {
+    toast('Ingen kvalifiserte deltakere', true);
+    return;
+  }
+
   const btn = document.getElementById('draw-btn');
   btn.disabled = true;
   const nameEl = document.getElementById('draw-name');
+  const stageEl = document.querySelector('.draw-stage');
   nameEl.classList.add('spinning');
-  let ticks = 0;
-  const totalTicks = 30 + Math.floor(Math.random() * 15);
-  drawTimer = setInterval(() => {
-    nameEl.textContent = participants[Math.floor(Math.random() * participants.length)].name;
-    ticks++;
-    if (ticks >= totalTicks) {
-      clearInterval(drawTimer);
-      const winner = participants[Math.floor(Math.random() * participants.length)];
+  nameEl.classList.remove('winner-reveal');
+  stageEl.classList.add('spinning');
+  stageEl.classList.remove('winner');
+
+  // Pre-pick the winner so we can build the sequence
+  const winner = participants[Math.floor(Math.random() * participants.length)];
+
+  // Build a longer, more dramatic animation
+  // Phase 1 (0-2s): fast cycling, equal speed
+  // Phase 2 (2-4s): start slowing, weight toward winner appearing
+  // Phase 3 (4-5s): very slow, lands on winner
+  const totalDurationMs = 5500;
+  const startTime = Date.now();
+  let lastName = '';
+
+  function tick() {
+    const elapsed = Date.now() - startTime;
+    const progress = elapsed / totalDurationMs;
+
+    if (progress >= 1) {
+      // Final reveal
       nameEl.textContent = winner.name;
       nameEl.classList.remove('spinning');
+      nameEl.classList.add('winner-reveal');
+      stageEl.classList.remove('spinning');
+      stageEl.classList.add('winner');
+
+      // Confetti effect
+      launchConfetti();
+
+      // Save the draw
       state.draws.push({
-        id: uid(), date: new Date().toISOString().slice(0, 10),
-        winnerId: winner.id, participantIds: participants.map(p => p.id)
+        id: uid(),
+        date: new Date().toISOString().slice(0, 10),
+        winnerId: winner.id,
+        participantIds: participants.map(p => p.id),
+        type: currentDrawType
       });
       save();
       btn.disabled = false;
       renderDrawHistory();
-      toast('🎉 ' + winner.name + ' vant!');
+      renderDrawParticipants(); // refresh in case A-exclusions changed
+      toast('🎉 ' + winner.name + ' vant ' + currentDrawType + '-trekningen!');
+      return;
     }
-  }, 80);
+
+    // Choose next name to show
+    // Speed up early, slow down late using an easing curve
+    let nextDelay;
+    if (progress < 0.4) {
+      nextDelay = 50; // fast
+    } else if (progress < 0.7) {
+      nextDelay = 80 + (progress - 0.4) * 400; // slowing
+    } else if (progress < 0.9) {
+      nextDelay = 200 + (progress - 0.7) * 1000; // slow
+    } else {
+      nextDelay = 400 + (progress - 0.9) * 3000; // very slow
+    }
+
+    // In the last 15% of time, bias heavily toward winner
+    let displayName;
+    if (progress > 0.85 && Math.random() < (progress - 0.85) * 6) {
+      displayName = winner.name;
+    } else {
+      // Random, but avoid showing same name twice in a row
+      let candidate;
+      let tries = 0;
+      do {
+        candidate = participants[Math.floor(Math.random() * participants.length)].name;
+        tries++;
+      } while (candidate === lastName && tries < 5 && participants.length > 1);
+      displayName = candidate;
+    }
+
+    nameEl.textContent = displayName;
+    lastName = displayName;
+    drawTimer = setTimeout(tick, nextDelay);
+  }
+
+  tick();
 }
-function resetDraw() { document.getElementById('draw-name').textContent = '—'; }
+
+function launchConfetti() {
+  const stage = document.querySelector('.draw-stage');
+  if (!stage) return;
+  const colors = ['#b89968', '#b8410f', '#4a6741', '#d4683a', '#f5f1e8'];
+  for (let i = 0; i < 30; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + '%';
+    c.style.top = '-20px';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.animation = `confetti-fall ${1.5 + Math.random() * 1.5}s ease-out forwards`;
+    c.style.animationDelay = (Math.random() * 0.4) + 's';
+    c.style.transform = `rotate(${Math.random() * 360}deg)`;
+    stage.appendChild(c);
+    setTimeout(() => c.remove(), 3500);
+  }
+}
+
+function resetDraw() {
+  if (drawTimer) { clearTimeout(drawTimer); drawTimer = null; }
+  const nameEl = document.getElementById('draw-name');
+  const stageEl = document.querySelector('.draw-stage');
+  nameEl.textContent = '—';
+  nameEl.classList.remove('spinning', 'winner-reveal');
+  stageEl.classList.remove('spinning', 'winner');
+  document.getElementById('draw-btn').disabled = false;
+}
+
 function renderDrawHistory() {
   const wrap = document.getElementById('draw-history');
   if (state.draws.length === 0) {
     wrap.innerHTML = '<div style="color:var(--muted);font-size:14px;">Ingen trekninger ennå.</div>';
     return;
   }
-  let html = '<table><thead><tr><th>Dato</th><th>Vinner</th><th>Antall deltakere</th><th></th></tr></thead><tbody>';
-  [...state.draws].reverse().forEach(d => {
+  let html = '<table><thead><tr><th>Dato</th><th>Type</th><th>Vinner</th><th>Deltakere</th><th></th></tr></thead><tbody>';
+  [...state.draws].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(d => {
     const w = state.members.find(m => m.id === d.winnerId);
+    const type = d.type || 'A'; // legacy draws default to A
+    const badge = type === 'A'
+      ? '<span class="badge" style="background:var(--gold);color:var(--ink);">A-trekning</span>'
+      : '<span class="badge badge-neutral">B-trekning</span>';
     html += `<tr>
       <td>${fmtDate(d.date)}</td>
+      <td>${badge}</td>
       <td><strong>${w ? escape(w.name) : 'Ukjent'}</strong></td>
       <td>${d.participantIds.length}</td>
       <td><button class="btn btn-danger btn-small" onclick="deleteDraw('${d.id}')">×</button></td>
@@ -1704,10 +2203,11 @@ function renderDrawHistory() {
   wrap.innerHTML = html;
 }
 function deleteDraw(id) {
-  if (!confirm('Slette trekning?')) return;
+  if (!confirm('Slette trekning? Dette kan påvirke hvem som er kvalifisert til A-trekning.')) return;
   state.draws = state.draws.filter(d => d.id !== id);
   save();
   renderDrawHistory();
+  renderDrawParticipants();
 }
 
 // ============ DASHBOARD ============
@@ -1861,14 +2361,16 @@ window.addEventListener('load', () => {
   }));
   dz.addEventListener('drop', e => {
     const f = e.dataTransfer.files[0];
-    if (f && f.type === 'application/pdf') {
-      const input = document.getElementById('pdfFile');
+    if (!f) return;
+    const name = f.name.toLowerCase();
+    if (name.endsWith('.csv') || name.endsWith('.txt') || name.endsWith('.pdf') || f.type === 'application/pdf') {
+      const input = document.getElementById('importFileImport');
       const dt = new DataTransfer();
       dt.items.add(f);
       input.files = dt.files;
-      handlePDF({ target: input });
+      handleImportFile({ target: input });
     } else {
-      toast('Slipp en PDF-fil', true);
+      toast('Slipp en CSV-, TXT- eller PDF-fil', true);
     }
   });
 
@@ -1881,10 +2383,14 @@ window.addMember = addMember;
 window.openMember = openMember;
 window.closeMemberModal = closeMemberModal;
 window.deleteMember = deleteMember;
+window.startMemberEdit = startMemberEdit;
+window.cancelMemberEdit = cancelMemberEdit;
+window.saveMemberEdit = saveMemberEdit;
 window.addManualPayment = addManualPayment;
 window.deletePayment = deletePayment;
 window.toggleMonth = toggleMonth;
 window.handlePDF = handlePDF;
+window.handleImportFile = handleImportFile;
 window.confirmMatch = confirmMatch;
 window.skipTx = skipTx;
 window.autoMatchAll = autoMatchAll;
@@ -1894,6 +2400,7 @@ window.startDraw = startDraw;
 window.resetDraw = resetDraw;
 window.toggleDrawActive = toggleDrawActive;
 window.deleteDraw = deleteDraw;
+window.switchDrawType = switchDrawType;
 window.saveSettings = saveSettings;
 window.exportData = exportData;
 window.importData = importData;
