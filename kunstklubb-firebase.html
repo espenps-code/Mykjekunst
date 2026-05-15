@@ -1,0 +1,1979 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kunstklubben — Regnskap</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  // ============ FIREBASE-KONFIGURASJON ============
+  // Lim inn din egen Firebase-config her — instruksjon i bunnen av filen
+  const firebaseConfig = {
+    apiKey: "AIzaSyCS9elGHqtpZ5jVbq3ha9osqvuhNLmh_bU",
+    authDomain: "mykje-kunstklubb.firebaseapp.com",
+    projectId: "mykje-kunstklubb",
+    storageBucket: "mykje-kunstklubb.firebasestorage.app",
+    messagingSenderId: "376743248244",
+    appId: "1:376743248244:web:7d544f20459af2be816c21"
+  };
+  // =================================================
+
+  let app, auth, db;
+  let configValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "DIN_API_KEY_HER";
+
+  if (configValid) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    window.firebase = { auth, db, signInWithEmailAndPassword, onAuthStateChanged, signOut, doc, getDoc, setDoc, onSnapshot };
+  }
+  window.firebaseReady = configValid;
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1814;
+    --paper: #f5f1e8;
+    --paper-deep: #ede7d8;
+    --accent: #b8410f;
+    --accent-soft: #d4683a;
+    --green: #4a6741;
+    --muted: #8a8275;
+    --line: #d4ccb8;
+    --gold: #b89968;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(184,65,15,0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(74,103,65,0.04) 0%, transparent 40%);
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .logo {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: 42px;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+  .logo em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+  }
+  .subtitle {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    color: var(--muted);
+    margin-top: 6px;
+    font-size: 15px;
+  }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .sync-status {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .sync-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .sync-dot.syncing { background: var(--gold); animation: pulse 1s infinite; }
+  .sync-dot.offline { background: var(--muted); }
+  .sync-dot.error { background: var(--accent); }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+
+  nav {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+  }
+  nav button {
+    background: none;
+    border: none;
+    padding: 14px 20px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  nav button:hover { color: var(--ink); }
+  nav button.active {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Login screen */
+  .login-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 200;
+  }
+  .login-box {
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+  }
+  .login-box .logo { font-size: 56px; margin-bottom: 8px; }
+  .login-box .subtitle { margin-bottom: 32px; }
+  .login-form { background: white; border: 1px solid var(--line); padding: 32px; text-align: left; }
+  .login-form .form-row { margin-bottom: 16px; }
+  .login-error { color: var(--accent); font-size: 13px; margin-top: 12px; min-height: 18px; }
+  .config-warning {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 24px;
+    margin-top: 24px;
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: left;
+  }
+  .config-warning strong { color: var(--gold); }
+  .config-warning code {
+    background: rgba(255,255,255,0.1);
+    padding: 1px 6px;
+    font-size: 12px;
+    font-family: monospace;
+  }
+
+  /* Dashboard cards */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .stat {
+    background: var(--paper-deep);
+    border: 1px solid var(--line);
+    padding: 24px;
+    position: relative;
+  }
+  .stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  .stat-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+    font-style: italic;
+    font-family: 'Fraunces', serif;
+  }
+  .stat.accent { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .stat.accent .stat-label { color: var(--gold); }
+  .stat.accent .stat-sub { color: rgba(245,241,232,0.6); }
+
+  /* Sections */
+  .section {
+    background: white;
+    border: 1px solid var(--line);
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .section-title {
+    font-family: 'Fraunces', serif;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  .section-title em { font-style: italic; color: var(--accent); font-weight: 400; }
+
+  /* Buttons */
+  .btn {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    padding: 10px 18px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .btn:hover { background: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { background: transparent; color: var(--ink); border: 1px solid var(--ink); }
+  .btn-secondary:hover { background: var(--ink); color: var(--paper); }
+  .btn-danger { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .btn-danger:hover { background: var(--accent); color: white; }
+  .btn-small { padding: 6px 12px; font-size: 12px; }
+  .btn-large { padding: 14px 28px; font-size: 14px; width: 100%; }
+
+  /* Forms */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: white;
+  }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    padding: 12px 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  td {
+    padding: 14px 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  tr:hover td { background: var(--paper-deep); }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-radius: 2px;
+  }
+  .badge-ok { background: var(--green); color: white; }
+  .badge-warn { background: var(--accent); color: white; }
+  .badge-neutral { background: var(--line); color: var(--ink); }
+
+  /* Drop zone */
+  .dropzone {
+    border: 2px dashed var(--line);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--paper-deep);
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: white; }
+  .dropzone-icon {
+    font-family: 'Fraunces', serif;
+    font-size: 48px;
+    color: var(--muted);
+    font-style: italic;
+  }
+  .dropzone-text { margin-top: 12px; color: var(--muted); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 14px 20px;
+    font-size: 14px;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s;
+    max-width: 380px;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: var(--accent); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(26,24,20,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--paper);
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 32px;
+    border: 1px solid var(--ink);
+  }
+  .modal h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+
+  /* Trekning */
+  .draw-stage {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 48px;
+    text-align: center;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .draw-stage::before {
+    content: '';
+    position: absolute;
+    inset: 12px;
+    border: 1px solid var(--gold);
+    pointer-events: none;
+  }
+  .draw-name {
+    font-family: 'Fraunces', serif;
+    font-size: 56px;
+    font-weight: 600;
+    font-style: italic;
+    color: var(--gold);
+    min-height: 80px;
+    line-height: 1;
+  }
+  .draw-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgba(245,241,232,0.6);
+    margin-bottom: 16px;
+  }
+  @keyframes spin {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .draw-name.spinning { animation: spin 0.1s infinite; }
+
+  .member-row { cursor: pointer; }
+  .month-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .month-cell {
+    padding: 8px 6px;
+    text-align: center;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .month-cell.paid { background: var(--green); color: white; border-color: var(--green); }
+  .month-cell.due { background: var(--paper-deep); }
+  .month-cell:hover { border-color: var(--accent); }
+  .month-name { font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  .month-amount { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+
+  .empty { padding: 48px 24px; text-align: center; color: var(--muted); }
+  .empty-title { font-family: 'Fraunces', serif; font-style: italic; font-size: 20px; margin-bottom: 8px; }
+
+  .match-item {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 16px;
+    padding: 16px;
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+  }
+  .match-item:last-child { border-bottom: none; }
+  .match-tx-amount { font-weight: 600; font-family: 'Fraunces', serif; font-size: 18px; }
+  .match-tx-desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .match-tx-date { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* Search */
+  .search-bar { margin-bottom: 16px; }
+  .search-bar input { font-size: 15px; padding: 12px 16px; }
+
+  /* Report */
+  .report-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .report-summary > div {
+    padding: 16px;
+    background: var(--paper-deep);
+    border: 1px solid var(--line);
+  }
+
+  @media (max-width: 640px) {
+    .container { padding: 16px 12px; }
+    .logo { font-size: 32px; }
+    .section { padding: 20px 16px; }
+    table { font-size: 12px; }
+    th, td { padding: 8px 4px; }
+    .draw-name { font-size: 36px; }
+  }
+
+  /* Loading */
+  .loading-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+  }
+  .loading-screen.hidden { display: none; }
+  .loading-text {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 24px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div class="loading-screen" id="loading-screen">
+  <div class="loading-text">— laster —</div>
+</div>
+
+<!-- Login screen -->
+<div class="login-screen" id="login-screen" style="display:none;">
+  <div class="login-box">
+    <div class="logo">Kunst<em>klubben</em></div>
+    <div class="subtitle">— logg inn for å fortsette —</div>
+
+    <div id="login-form-wrap">
+      <div class="login-form">
+        <div class="form-row">
+          <label>E-post</label>
+          <input type="email" id="login-email" autocomplete="email">
+        </div>
+        <div class="form-row">
+          <label>Passord</label>
+          <input type="password" id="login-password" autocomplete="current-password">
+        </div>
+        <button class="btn btn-large" onclick="doLogin()">Logg inn</button>
+        <div class="login-error" id="login-error"></div>
+      </div>
+    </div>
+
+    <div id="config-needed" style="display:none;">
+      <div class="config-warning">
+        <strong>Firebase ikke konfigurert</strong><br><br>
+        Du må sette opp et Firebase-prosjekt og lime inn nøklene øverst i denne HTML-filen før du kan logge inn.<br><br>
+        Se instruksjonene i bunnen av filen (åpne i tekstredigerer) — eller spør Claude på nytt om "hvordan setter jeg opp Firebase for kunstklubb-appen".
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main app -->
+<div class="container" id="app" style="display:none;">
+
+  <header>
+    <div>
+      <div class="logo">Kunst<em>klubben</em></div>
+      <div class="subtitle">— et regnskap for medlemmer, midler og malerier —</div>
+    </div>
+    <div class="header-actions">
+      <div class="sync-status" id="sync-status">
+        <div class="sync-dot" id="sync-dot"></div>
+        <span id="sync-text">Synkronisert</span>
+      </div>
+      <button class="btn btn-secondary btn-small" onclick="exportData()">Eksport</button>
+      <button class="btn btn-secondary btn-small" onclick="doLogout()">Logg ut</button>
+    </div>
+  </header>
+
+  <nav>
+    <button class="active" data-view="dashboard">Oversikt</button>
+    <button data-view="members">Medlemmer</button>
+    <button data-view="import">Kontoutskrift</button>
+    <button data-view="expenses">Utgifter</button>
+    <button data-view="reports">Rapporter</button>
+    <button data-view="draw">Trekning</button>
+    <button data-view="settings">Innstillinger</button>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <div class="view active" id="view-dashboard">
+    <div class="stats">
+      <div class="stat accent">
+        <div class="stat-label">Kassebeholdning</div>
+        <div class="stat-value" id="stat-balance">0 kr</div>
+        <div class="stat-sub" id="stat-balance-sub">basert på registrerte transaksjoner</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Medlemmer</div>
+        <div class="stat-value" id="stat-members">0</div>
+        <div class="stat-sub" id="stat-members-sub">aktive denne perioden</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Innbetalt totalt</div>
+        <div class="stat-value" id="stat-income">0 kr</div>
+        <div class="stat-sub">innskudd + månedsbidrag</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Utgifter totalt</div>
+        <div class="stat-value" id="stat-expenses">0 kr</div>
+        <div class="stat-sub">kunstkjøp og annet</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Status <em>denne måneden</em></div>
+        <div id="current-month-label" style="color:var(--muted);font-size:13px;"></div>
+      </div>
+      <div id="month-status"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Siste <em>aktivitet</em></div>
+      </div>
+      <div id="recent-activity"></div>
+    </div>
+  </div>
+
+  <!-- MEMBERS -->
+  <div class="view" id="view-members">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Legg til <em>medlem</em></div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label>Navn</label>
+          <input type="text" id="new-member-name" placeholder="Ola Nordmann">
+        </div>
+        <div>
+          <label>Innmeldingsdato</label>
+          <input type="date" id="new-member-date">
+        </div>
+        <div>
+          <label>Notat (valgfritt)</label>
+          <input type="text" id="new-member-note" placeholder="f.eks. konto-referanse">
+        </div>
+      </div>
+      <button class="btn" onclick="addMember()">Legg til medlem</button>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Medlems<em>register</em></div>
+        <div style="color:var(--muted);font-size:13px;" id="member-count-label"></div>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="member-search" placeholder="Søk medlem …" oninput="renderMembers()">
+      </div>
+      <div id="members-list"></div>
+    </div>
+  </div>
+
+  <!-- IMPORT -->
+  <div class="view" id="view-import">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Last opp <em>kontoutskrift</em></div>
+      </div>
+      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Last opp PDF fra nettbanken. Systemet leser ut transaksjoner og foreslår matching mot medlemmer.</p>
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('pdfFile').click()">
+        <div class="dropzone-icon">+</div>
+        <div class="dropzone-text">Klikk eller dra PDF hit</div>
+        <input type="file" id="pdfFile" accept=".pdf" style="display:none" onchange="handlePDF(event)">
+      </div>
+      <div id="pdf-status" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="section" id="parsed-section" style="display:none;">
+      <div class="section-header">
+        <div class="section-title">Funnet <em>transaksjoner</em></div>
+        <div>
+          <button class="btn btn-secondary btn-small" onclick="autoMatchAll()">Auto-match alle</button>
+        </div>
+      </div>
+      <div id="parsed-transactions"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Registrerte <em>innbetalinger</em></div>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="payment-search" placeholder="Søk innbetalinger …" oninput="renderPayments()">
+      </div>
+      <div id="payments-list"></div>
+    </div>
+  </div>
+
+  <!-- EXPENSES -->
+  <div class="view" id="view-expenses">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Registrer <em>utgift</em></div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label>Dato</label>
+          <input type="date" id="exp-date">
+        </div>
+        <div>
+          <label>Beskrivelse</label>
+          <input type="text" id="exp-desc" placeholder="f.eks. Litografi av Munch">
+        </div>
+        <div>
+          <label>Kategori</label>
+          <select id="exp-category">
+            <option>Kunstkjøp</option>
+            <option>Trekning / premie</option>
+            <option>Møte / servering</option>
+            <option>Administrasjon</option>
+            <option>Annet</option>
+          </select>
+        </div>
+        <div>
+          <label>Beløp (kr)</label>
+          <input type="number" id="exp-amount" placeholder="0">
+        </div>
+      </div>
+      <button class="btn" onclick="addExpense()">Legg til utgift</button>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Alle <em>utgifter</em></div>
+      </div>
+      <div id="expenses-list"></div>
+    </div>
+  </div>
+
+  <!-- REPORTS -->
+  <div class="view" id="view-reports">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Års<em>rapport</em></div>
+        <div>
+          <select id="report-year" onchange="renderReports()" style="width:auto;"></select>
+        </div>
+      </div>
+      <div id="report-content"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Eksporter <em>til CSV</em></div>
+      </div>
+      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Last ned data som CSV-fil (kan åpnes i Excel).</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="exportCSV('members')">Medlemsliste</button>
+        <button class="btn btn-secondary" onclick="exportCSV('payments')">Innbetalinger</button>
+        <button class="btn btn-secondary" onclick="exportCSV('expenses')">Utgifter</button>
+        <button class="btn btn-secondary" onclick="exportCSV('summary')">Sammendrag</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAW -->
+  <div class="view" id="view-draw">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Trekning ved <em>skoleslutt</em></div>
+      </div>
+      <p style="color:var(--muted);margin-bottom:20px;font-size:14px;">Velg hvem som skal være med i trekningen. Som standard er alle aktive medlemmer med.</p>
+
+      <div class="draw-stage">
+        <div class="draw-label">Vinneren er</div>
+        <div class="draw-name" id="draw-name">—</div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn" onclick="startDraw()" id="draw-btn">Start trekning</button>
+        <button class="btn btn-secondary" onclick="resetDraw()">Tilbakestill</button>
+      </div>
+
+      <div style="margin-top:32px;">
+        <label style="margin-bottom:12px;">Deltakere</label>
+        <div id="draw-participants"></div>
+      </div>
+
+      <div style="margin-top:24px;">
+        <label>Trekningshistorikk</label>
+        <div id="draw-history"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="view" id="view-settings">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Klubb<em>innstillinger</em></div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label>Klubbnavn</label>
+          <input type="text" id="set-name">
+        </div>
+        <div>
+          <label>Innskudd ved påmelding (kr)</label>
+          <input type="number" id="set-deposit">
+        </div>
+        <div>
+          <label>Månedlig beløp (kr)</label>
+          <input type="number" id="set-monthly">
+        </div>
+        <div>
+          <label>Skoleår starter (måned)</label>
+          <select id="set-startmonth">
+            <option value="8">August</option>
+            <option value="9">September</option>
+            <option value="1">Januar</option>
+          </select>
+        </div>
+        <div>
+          <label>Skoleår slutter (måned)</label>
+          <select id="set-endmonth">
+            <option value="6">Juni</option>
+            <option value="5">Mai</option>
+            <option value="12">Desember</option>
+          </select>
+        </div>
+        <div>
+          <label>Startsaldo (kr)</label>
+          <input type="number" id="set-opening" placeholder="0">
+        </div>
+      </div>
+      <button class="btn" onclick="saveSettings()">Lagre innstillinger</button>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Data<em>håndtering</em></div>
+      </div>
+      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Data lagres i Firebase (EU-region) og synkroniseres automatisk mellom enhetene dine.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="exportData()">Last ned sikkerhetskopi (JSON)</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Importer fra fil</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+        <button class="btn btn-danger" onclick="resetAll()">Slett alle data</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Member detail modal -->
+<div class="modal-backdrop" id="member-modal">
+  <div class="modal">
+    <h3 id="modal-member-name">Medlem</h3>
+    <div id="modal-member-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="deleteMember()">Slett medlem</button>
+      <button class="btn" onclick="closeMemberModal()">Lukk</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let state = {
+  settings: {
+    name: 'Kunstklubben',
+    deposit: 1000,
+    monthly: 200,
+    startMonth: 8,
+    endMonth: 6,
+    opening: 0
+  },
+  members: [],
+  payments: [],
+  expenses: [],
+  draws: [],
+  parsedTx: []
+};
+
+let currentMemberId = null;
+let currentUser = null;
+let firestoreUnsubscribe = null;
+let pendingSave = null;
+let lastLocalChange = 0;
+
+// ============ FIREBASE INIT ============
+window.addEventListener('firebase-ready', () => {
+  if (!window.firebaseReady) {
+    document.getElementById('loading-screen').classList.add('hidden');
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('login-form-wrap').style.display = 'none';
+    document.getElementById('config-needed').style.display = 'block';
+    return;
+  }
+  window.firebase.onAuthStateChanged(window.firebase.auth, user => {
+    if (user) {
+      currentUser = user;
+      document.getElementById('loading-screen').classList.remove('hidden');
+      document.getElementById('login-screen').style.display = 'none';
+      subscribeToData().then(() => {
+        document.getElementById('loading-screen').classList.add('hidden');
+        document.getElementById('app').style.display = 'block';
+        loadSettingsUI();
+        renderAll();
+      });
+    } else {
+      currentUser = null;
+      if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
+      document.getElementById('loading-screen').classList.add('hidden');
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+    }
+  });
+});
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  if (!email || !pw) { errEl.textContent = 'Fyll ut e-post og passord.'; return; }
+  try {
+    await window.firebase.signInWithEmailAndPassword(window.firebase.auth, email, pw);
+  } catch (err) {
+    console.error(err);
+    if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+      errEl.textContent = 'Feil e-post eller passord.';
+    } else if (err.code === 'auth/too-many-requests') {
+      errEl.textContent = 'For mange forsøk. Prøv igjen senere.';
+    } else {
+      errEl.textContent = 'Innlogging feilet: ' + err.message;
+    }
+  }
+}
+
+async function doLogout() {
+  if (!confirm('Logge ut?')) return;
+  await window.firebase.signOut(window.firebase.auth);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') {
+    doLogin();
+  }
+});
+
+// ============ FIRESTORE SYNC ============
+function setSyncStatus(status, text) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (status === 'syncing' ? ' syncing' : status === 'offline' ? ' offline' : status === 'error' ? ' error' : '');
+  txt.textContent = text;
+}
+
+function subscribeToData() {
+  return new Promise(resolve => {
+    if (!currentUser) { resolve(); return; }
+    const ref = window.firebase.doc(window.firebase.db, 'users', currentUser.uid);
+    let firstLoad = true;
+    firestoreUnsubscribe = window.firebase.onSnapshot(ref, snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        // Don't overwrite if this is from our own recent write
+        if (data._writtenAt && data._writtenAt < lastLocalChange - 500) {
+          // skip stale snapshot
+        } else {
+          state = {
+            ...state,
+            settings: { ...state.settings, ...(data.settings || {}) },
+            members: data.members || [],
+            payments: data.payments || [],
+            expenses: data.expenses || [],
+            draws: data.draws || [],
+            parsedTx: data.parsedTx || []
+          };
+          if (!firstLoad) {
+            loadSettingsUI();
+            renderAll();
+          }
+        }
+      }
+      setSyncStatus('ok', 'Synkronisert');
+      if (firstLoad) { firstLoad = false; resolve(); }
+    }, err => {
+      console.error(err);
+      setSyncStatus('error', 'Tilkoblingsfeil');
+      if (firstLoad) { firstLoad = false; resolve(); }
+    });
+  });
+}
+
+function save() {
+  if (!currentUser) return;
+  lastLocalChange = Date.now();
+  setSyncStatus('syncing', 'Lagrer …');
+  if (pendingSave) clearTimeout(pendingSave);
+  pendingSave = setTimeout(async () => {
+    try {
+      const ref = window.firebase.doc(window.firebase.db, 'users', currentUser.uid);
+      await window.firebase.setDoc(ref, {
+        settings: state.settings,
+        members: state.members,
+        payments: state.payments,
+        expenses: state.expenses,
+        draws: state.draws,
+        parsedTx: state.parsedTx,
+        _writtenAt: Date.now()
+      });
+      setSyncStatus('ok', 'Synkronisert');
+    } catch (err) {
+      console.error(err);
+      setSyncStatus('error', 'Lagring feilet');
+      toast('Kunne ikke lagre: ' + err.message, true);
+    }
+  }, 300);
+}
+
+// ============ HELPERS ============
+function fmt(n) { return new Intl.NumberFormat('nb-NO').format(Math.round(n)) + ' kr'; }
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('nb-NO', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast' + (isError ? ' error' : ''), 3200);
+}
+function monthKey(d) {
+  const date = new Date(d);
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+}
+function currentSchoolYear() {
+  const today = new Date();
+  const start = state.settings.startMonth;
+  const end = state.settings.endMonth;
+  let startYear = today.getFullYear();
+  if (today.getMonth() + 1 < start && end < start) startYear -= 1;
+  const months = [];
+  let y = startYear, m = start;
+  while (true) {
+    months.push(y + '-' + String(m).padStart(2, '0'));
+    if (m === end && (y > startYear || start <= end)) break;
+    m++;
+    if (m > 12) { m = 1; y++; }
+    if (months.length > 24) break;
+  }
+  return months;
+}
+function escape(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============ NAV ============
+document.querySelectorAll('nav button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('view-' + b.dataset.view).classList.add('active');
+    renderAll();
+  });
+});
+
+// ============ MEMBERS ============
+function addMember() {
+  const name = document.getElementById('new-member-name').value.trim();
+  const date = document.getElementById('new-member-date').value;
+  const note = document.getElementById('new-member-note').value.trim();
+  if (!name) { toast('Skriv inn navn', true); return; }
+  state.members.push({
+    id: uid(),
+    name,
+    joinDate: date || new Date().toISOString().slice(0, 10),
+    note,
+    active: true
+  });
+  save();
+  document.getElementById('new-member-name').value = '';
+  document.getElementById('new-member-date').value = '';
+  document.getElementById('new-member-note').value = '';
+  toast('Medlem lagt til');
+  renderAll();
+}
+
+function renderMembers() {
+  const list = document.getElementById('members-list');
+  const search = (document.getElementById('member-search')?.value || '').toLowerCase().trim();
+  const filtered = state.members.filter(m => !search || m.name.toLowerCase().includes(search) || (m.note || '').toLowerCase().includes(search));
+  if (state.members.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">Ingen medlemmer ennå</div><div>Legg til ditt første medlem ovenfor.</div></div>';
+    document.getElementById('member-count-label').textContent = '';
+    return;
+  }
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">Ingen treff</div></div>';
+    document.getElementById('member-count-label').textContent = state.members.length + ' medlemmer';
+    return;
+  }
+  const months = currentSchoolYear();
+  let html = '<table><thead><tr><th>Navn</th><th>Innmeldt</th><th class="num">Innskudd</th><th class="num">Bidrag i år</th><th>Status</th></tr></thead><tbody>';
+  filtered.forEach(m => {
+    const memberPayments = state.payments.filter(p => p.memberId === m.id);
+    const deposit = memberPayments.filter(p => p.type === 'deposit').reduce((s, p) => s + p.amount, 0);
+    const paidMonths = new Set(memberPayments.filter(p => p.type === 'monthly').map(p => monthKey(p.date)));
+    const paidThisYear = months.filter(mk => paidMonths.has(mk)).length;
+    const yearAmount = memberPayments.filter(p => p.type === 'monthly' && months.includes(monthKey(p.date))).reduce((s, p) => s + p.amount, 0);
+    const hasDeposit = deposit > 0;
+    const monthsExpected = months.filter(mk => {
+      const [y, mm] = mk.split('-').map(Number);
+      const monthDate = new Date(y, mm - 1, 28);
+      return monthDate <= new Date() && new Date(m.joinDate) <= new Date(y, mm - 1, 1);
+    }).length;
+    let statusBadge;
+    if (!hasDeposit) statusBadge = '<span class="badge badge-warn">Mangler innskudd</span>';
+    else if (paidThisYear >= monthsExpected) statusBadge = '<span class="badge badge-ok">Ajour</span>';
+    else statusBadge = '<span class="badge badge-warn">' + (monthsExpected - paidThisYear) + ' mnd bak</span>';
+    html += `<tr class="member-row" onclick="openMember('${m.id}')">
+      <td><strong>${escape(m.name)}</strong>${m.note ? '<div style="font-size:11px;color:var(--muted);">' + escape(m.note) + '</div>' : ''}</td>
+      <td>${fmtDate(m.joinDate)}</td>
+      <td class="num">${fmt(deposit)}</td>
+      <td class="num">${fmt(yearAmount)}</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  list.innerHTML = html;
+  document.getElementById('member-count-label').textContent = state.members.length + ' medlemmer';
+}
+
+function openMember(id) {
+  currentMemberId = id;
+  const m = state.members.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('modal-member-name').textContent = m.name;
+  const memberPayments = state.payments.filter(p => p.memberId === id).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const months = currentSchoolYear();
+  const paidByMonth = {};
+  memberPayments.filter(p => p.type === 'monthly').forEach(p => {
+    paidByMonth[monthKey(p.date)] = (paidByMonth[monthKey(p.date)] || 0) + p.amount;
+  });
+  const deposit = memberPayments.filter(p => p.type === 'deposit').reduce((s, p) => s + p.amount, 0);
+  const totalContributed = memberPayments.reduce((s, p) => s + p.amount, 0);
+
+  let html = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
+      <div><div class="stat-label">Innmeldt</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmtDate(m.joinDate)}</div></div>
+      <div><div class="stat-label">Innskudd</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmt(deposit)}</div></div>
+      <div><div class="stat-label">Totalt bidratt</div><div style="font-family:'Fraunces',serif;font-size:18px;">${fmt(totalContributed)}</div></div>
+    </div>
+    <div>
+      <label>Måneder dette skoleåret</label>
+      <div class="month-grid">
+  `;
+  const monthNames = ['Jan','Feb','Mar','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Des'];
+  months.forEach(mk => {
+    const [y, mm] = mk.split('-').map(Number);
+    const paid = paidByMonth[mk];
+    const cls = paid ? 'paid' : 'due';
+    html += `<div class="month-cell ${cls}" onclick="toggleMonth('${id}','${mk}')">
+      <div class="month-name">${monthNames[mm-1]}</div>
+      <div class="month-amount">${paid ? fmt(paid) : '—'}</div>
+    </div>`;
+  });
+  html += '</div></div>';
+
+  html += '<div style="margin-top:24px;"><label>Alle innbetalinger</label>';
+  if (memberPayments.length === 0) {
+    html += '<div style="color:var(--muted);font-size:14px;padding:12px 0;">Ingen innbetalinger registrert.</div>';
+  } else {
+    html += '<table style="margin-top:8px;"><thead><tr><th>Dato</th><th>Type</th><th class="num">Beløp</th><th></th></tr></thead><tbody>';
+    memberPayments.forEach(p => {
+      html += `<tr><td>${fmtDate(p.date)}</td><td>${p.type === 'deposit' ? 'Innskudd' : p.type === 'monthly' ? 'Månedsbidrag' : 'Annet'}</td><td class="num">${fmt(p.amount)}</td>
+      <td><button class="btn btn-danger btn-small" onclick="deletePayment('${p.id}')">×</button></td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+
+  html += `<div style="margin-top:24px;"><label>Registrer manuell innbetaling</label>
+    <div class="form-grid" style="margin-top:8px;">
+      <div><input type="date" id="manual-date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div><select id="manual-type"><option value="monthly">Månedsbidrag</option><option value="deposit">Innskudd</option><option value="other">Annet</option></select></div>
+      <div><input type="number" id="manual-amount" placeholder="${state.settings.monthly}" value="${state.settings.monthly}"></div>
+    </div>
+    <button class="btn btn-small" onclick="addManualPayment('${id}')">Legg til</button>
+  </div>`;
+
+  document.getElementById('modal-member-content').innerHTML = html;
+  document.getElementById('member-modal').classList.add('show');
+}
+
+function closeMemberModal() {
+  document.getElementById('member-modal').classList.remove('show');
+  currentMemberId = null;
+}
+
+function deleteMember() {
+  if (!currentMemberId) return;
+  const m = state.members.find(x => x.id === currentMemberId);
+  if (!confirm('Slette ' + m.name + '? Innbetalinger fra dette medlemmet beholdes som "uten medlem".')) return;
+  state.payments.forEach(p => { if (p.memberId === currentMemberId) p.memberId = null; });
+  state.members = state.members.filter(x => x.id !== currentMemberId);
+  save();
+  closeMemberModal();
+  toast('Medlem slettet');
+  renderAll();
+}
+
+function addManualPayment(memberId) {
+  const date = document.getElementById('manual-date').value;
+  const type = document.getElementById('manual-type').value;
+  const amount = parseFloat(document.getElementById('manual-amount').value);
+  if (!amount || amount <= 0) { toast('Ugyldig beløp', true); return; }
+  state.payments.push({
+    id: uid(), memberId, date, amount, type, description: 'Manuelt registrert'
+  });
+  save();
+  toast('Innbetaling registrert');
+  openMember(memberId);
+  renderAll();
+}
+
+function deletePayment(id) {
+  if (!confirm('Slette denne innbetalingen?')) return;
+  state.payments = state.payments.filter(p => p.id !== id);
+  save();
+  if (currentMemberId) openMember(currentMemberId);
+  renderAll();
+}
+
+function toggleMonth(memberId, mk) {
+  const existing = state.payments.find(p => p.memberId === memberId && p.type === 'monthly' && monthKey(p.date) === mk);
+  if (existing) {
+    if (!confirm('Fjerne registrering for denne måneden?')) return;
+    state.payments = state.payments.filter(p => p.id !== existing.id);
+  } else {
+    const [y, mm] = mk.split('-');
+    state.payments.push({
+      id: uid(), memberId, date: y + '-' + mm + '-15',
+      amount: state.settings.monthly, type: 'monthly', description: 'Manuelt registrert'
+    });
+  }
+  save();
+  openMember(memberId);
+  renderAll();
+}
+
+// ============ PDF IMPORT ============
+async function handlePDF(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('pdf-status').innerHTML = '<div style="color:var(--muted);">Leser PDF …</div>';
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let allText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const lines = {};
+      textContent.items.forEach(item => {
+        const y = Math.round(item.transform[5]);
+        if (!lines[y]) lines[y] = [];
+        lines[y].push({ x: item.transform[4], str: item.str });
+      });
+      Object.keys(lines).sort((a, b) => b - a).forEach(y => {
+        const sorted = lines[y].sort((a, b) => a.x - b.x).map(x => x.str).join(' ');
+        allText += sorted + '\n';
+      });
+      allText += '\n';
+    }
+    const txs = parseTransactions(allText);
+    state.parsedTx = txs;
+    save();
+    document.getElementById('pdf-status').innerHTML = '<div style="color:var(--green);font-weight:600;">✓ Fant ' + txs.length + ' mulige innbetalinger.</div>';
+    renderParsedTx();
+    e.target.value = '';
+  } catch (err) {
+    console.error(err);
+    document.getElementById('pdf-status').innerHTML = '<div style="color:var(--accent);">Kunne ikke lese PDF.</div>';
+  }
+}
+
+function parseTransactions(text) {
+  const txs = [];
+  const lines = text.split('\n').filter(l => l.trim());
+  const datePattern = /(\d{1,2})[.\/\-](\d{1,2})[.\/\-]?(\d{2,4})?/;
+
+  lines.forEach(line => {
+    const dateMatch = line.match(datePattern);
+    if (!dateMatch) return;
+    const amountMatch = line.match(/(-?\d{1,3}(?:[\s.]\d{3})*[,.]\d{2}|-?\d+[,.]\d{2}|-?\d{2,6})/g);
+    if (!amountMatch) return;
+    let amount = null;
+    for (let i = amountMatch.length - 1; i >= 0; i--) {
+      const cleaned = amountMatch[i].replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.');
+      const num = parseFloat(cleaned);
+      if (!isNaN(num) && num > 0 && num < 100000) { amount = num; break; }
+    }
+    if (!amount) return;
+
+    let day = dateMatch[1].padStart(2, '0');
+    let month = dateMatch[2].padStart(2, '0');
+    let year = dateMatch[3];
+    if (!year) year = new Date().getFullYear();
+    else if (year.length === 2) year = '20' + year;
+    const date = year + '-' + month + '-' + day;
+
+    const desc = line.replace(datePattern, '').replace(/-?\d{1,3}(?:[\s.]\d{3})*[,.]\d{2}/g, '').trim();
+    txs.push({ date, amount, description: desc.slice(0, 100), rawLine: line });
+  });
+
+  const seen = new Set();
+  return txs.filter(t => {
+    const k = t.date + '|' + t.amount + '|' + t.description;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+function renderParsedTx() {
+  const wrap = document.getElementById('parsed-section');
+  if (state.parsedTx.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const container = document.getElementById('parsed-transactions');
+  let html = '';
+  state.parsedTx.forEach((tx, idx) => {
+    const suggested = suggestMember(tx);
+    html += `<div class="match-item">
+      <div class="match-tx">
+        <div class="match-tx-date">${fmtDate(tx.date)}</div>
+        <div class="match-tx-amount">${fmt(tx.amount)}</div>
+        <div class="match-tx-desc">${escape(tx.description)}</div>
+      </div>
+      <div>
+        <select id="match-select-${idx}" style="width:100%;">
+          <option value="">— Velg medlem —</option>
+          ${state.members.map(m => `<option value="${m.id}" ${suggested && suggested.id === m.id ? 'selected' : ''}>${escape(m.name)}</option>`).join('')}
+          <option value="__skip__">Hopp over (ikke innbetaling)</option>
+        </select>
+        <select id="match-type-${idx}" style="width:100%;margin-top:6px;">
+          <option value="auto" ${guessType(tx) === 'auto' ? 'selected' : ''}>Auto (basert på beløp)</option>
+          <option value="deposit" ${guessType(tx) === 'deposit' ? 'selected' : ''}>Innskudd</option>
+          <option value="monthly" ${guessType(tx) === 'monthly' ? 'selected' : ''}>Månedsbidrag</option>
+          <option value="other">Annet</option>
+        </select>
+      </div>
+      <div>
+        <button class="btn btn-small" onclick="confirmMatch(${idx})">Registrer</button>
+        <button class="btn btn-secondary btn-small" onclick="skipTx(${idx})" style="margin-top:4px;display:block;width:100%;">Hopp over</button>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function suggestMember(tx) {
+  const desc = tx.description.toLowerCase();
+  for (const m of state.members) {
+    const firstName = m.name.split(' ')[0].toLowerCase();
+    const lastName = m.name.split(' ').slice(-1)[0].toLowerCase();
+    if (firstName.length > 2 && desc.includes(firstName)) return m;
+    if (lastName.length > 2 && desc.includes(lastName)) return m;
+    if (m.note && m.note.length > 2 && desc.includes(m.note.toLowerCase())) return m;
+  }
+  return null;
+}
+
+function guessType(tx) {
+  const dep = state.settings.deposit;
+  const mon = state.settings.monthly;
+  if (Math.abs(tx.amount - dep) < 1) return 'deposit';
+  if (Math.abs(tx.amount - mon) < 1) return 'monthly';
+  if (mon > 0 && tx.amount % mon < 1 && tx.amount / mon <= 12) return 'monthly';
+  return 'auto';
+}
+
+function confirmMatch(idx) {
+  const sel = document.getElementById('match-select-' + idx);
+  const typeSel = document.getElementById('match-type-' + idx);
+  const tx = state.parsedTx[idx];
+  if (!sel.value) { toast('Velg medlem først', true); return; }
+  if (sel.value === '__skip__') { skipTx(idx); return; }
+  let type = typeSel.value;
+  if (type === 'auto') {
+    const dep = state.settings.deposit;
+    const mon = state.settings.monthly;
+    if (Math.abs(tx.amount - dep) < 1) type = 'deposit';
+    else if (Math.abs(tx.amount - mon) < 1) type = 'monthly';
+    else type = 'other';
+  }
+  const dup = state.payments.find(p => p.memberId === sel.value && p.date === tx.date && Math.abs(p.amount - tx.amount) < 1);
+  if (dup && !confirm('Det finnes allerede en lignende innbetaling. Legg til likevel?')) return;
+  state.payments.push({
+    id: uid(), memberId: sel.value, date: tx.date,
+    amount: tx.amount, type, description: tx.description
+  });
+  state.parsedTx.splice(idx, 1);
+  save();
+  toast('Innbetaling registrert');
+  renderAll();
+}
+
+function skipTx(idx) {
+  state.parsedTx.splice(idx, 1);
+  save();
+  renderParsedTx();
+}
+
+function autoMatchAll() {
+  let matched = 0;
+  const remaining = [];
+  state.parsedTx.forEach(tx => {
+    const m = suggestMember(tx);
+    if (!m) { remaining.push(tx); return; }
+    const dep = state.settings.deposit;
+    const mon = state.settings.monthly;
+    let type = 'other';
+    if (Math.abs(tx.amount - dep) < 1) type = 'deposit';
+    else if (Math.abs(tx.amount - mon) < 1) type = 'monthly';
+    else if (mon > 0 && tx.amount % mon < 1) type = 'monthly';
+    else { remaining.push(tx); return; }
+    const dup = state.payments.find(p => p.memberId === m.id && p.date === tx.date && Math.abs(p.amount - tx.amount) < 1);
+    if (dup) { remaining.push(tx); return; }
+    state.payments.push({
+      id: uid(), memberId: m.id, date: tx.date,
+      amount: tx.amount, type, description: tx.description
+    });
+    matched++;
+  });
+  state.parsedTx = remaining;
+  save();
+  toast(`Auto-matchet ${matched}. ${remaining.length} igjen.`);
+  renderAll();
+}
+
+function renderPayments() {
+  const list = document.getElementById('payments-list');
+  const search = (document.getElementById('payment-search')?.value || '').toLowerCase().trim();
+  let payments = [...state.payments].sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (search) {
+    payments = payments.filter(p => {
+      const m = state.members.find(x => x.id === p.memberId);
+      const name = (m?.name || '').toLowerCase();
+      return name.includes(search) || (p.description || '').toLowerCase().includes(search);
+    });
+  }
+  if (state.payments.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">Ingen innbetalinger ennå</div></div>';
+    return;
+  }
+  if (payments.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">Ingen treff</div></div>';
+    return;
+  }
+  const shown = payments.slice(0, 100);
+  let html = '<table><thead><tr><th>Dato</th><th>Medlem</th><th>Type</th><th class="num">Beløp</th><th></th></tr></thead><tbody>';
+  shown.forEach(p => {
+    const m = state.members.find(x => x.id === p.memberId);
+    html += `<tr>
+      <td>${fmtDate(p.date)}</td>
+      <td>${m ? escape(m.name) : '<em style="color:var(--muted);">Ukjent</em>'}</td>
+      <td>${p.type === 'deposit' ? 'Innskudd' : p.type === 'monthly' ? 'Månedsbidrag' : 'Annet'}</td>
+      <td class="num">${fmt(p.amount)}</td>
+      <td><button class="btn btn-danger btn-small" onclick="deletePayment('${p.id}')">×</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  if (payments.length > 100) {
+    html += '<div style="color:var(--muted);font-size:13px;margin-top:8px;text-align:center;">Viser 100 av ' + payments.length + '</div>';
+  }
+  list.innerHTML = html;
+}
+
+// ============ EXPENSES ============
+function addExpense() {
+  const date = document.getElementById('exp-date').value || new Date().toISOString().slice(0, 10);
+  const desc = document.getElementById('exp-desc').value.trim();
+  const cat = document.getElementById('exp-category').value;
+  const amount = parseFloat(document.getElementById('exp-amount').value);
+  if (!desc) { toast('Skriv beskrivelse', true); return; }
+  if (!amount || amount <= 0) { toast('Ugyldig beløp', true); return; }
+  state.expenses.push({ id: uid(), date, description: desc, category: cat, amount });
+  save();
+  document.getElementById('exp-desc').value = '';
+  document.getElementById('exp-amount').value = '';
+  toast('Utgift registrert');
+  renderAll();
+}
+
+function deleteExpense(id) {
+  if (!confirm('Slette denne utgiften?')) return;
+  state.expenses = state.expenses.filter(e => e.id !== id);
+  save();
+  renderAll();
+}
+
+function renderExpenses() {
+  const list = document.getElementById('expenses-list');
+  if (state.expenses.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">Ingen utgifter</div></div>';
+    return;
+  }
+  const sorted = [...state.expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
+  let html = '<table><thead><tr><th>Dato</th><th>Beskrivelse</th><th>Kategori</th><th class="num">Beløp</th><th></th></tr></thead><tbody>';
+  sorted.forEach(e => {
+    html += `<tr>
+      <td>${fmtDate(e.date)}</td>
+      <td>${escape(e.description)}</td>
+      <td><span class="badge badge-neutral">${escape(e.category)}</span></td>
+      <td class="num">${fmt(e.amount)}</td>
+      <td><button class="btn btn-danger btn-small" onclick="deleteExpense('${e.id}')">×</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  list.innerHTML = html;
+}
+
+// ============ REPORTS ============
+function renderReports() {
+  const yearSel = document.getElementById('report-year');
+  const allYears = new Set();
+  state.payments.forEach(p => allYears.add(new Date(p.date).getFullYear()));
+  state.expenses.forEach(e => allYears.add(new Date(e.date).getFullYear()));
+  allYears.add(new Date().getFullYear());
+  const years = [...allYears].sort((a, b) => b - a);
+  const currentVal = yearSel.value || years[0];
+  yearSel.innerHTML = years.map(y => `<option value="${y}" ${y == currentVal ? 'selected' : ''}>${y}</option>`).join('');
+  const selectedYear = parseInt(yearSel.value);
+
+  const yearPayments = state.payments.filter(p => new Date(p.date).getFullYear() === selectedYear);
+  const yearExpenses = state.expenses.filter(e => new Date(e.date).getFullYear() === selectedYear);
+  const totalIn = yearPayments.reduce((s, p) => s + p.amount, 0);
+  const totalOut = yearExpenses.reduce((s, e) => s + e.amount, 0);
+  const depositTotal = yearPayments.filter(p => p.type === 'deposit').reduce((s, p) => s + p.amount, 0);
+  const monthlyTotal = yearPayments.filter(p => p.type === 'monthly').reduce((s, p) => s + p.amount, 0);
+
+  // Expenses by category
+  const byCat = {};
+  yearExpenses.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + e.amount; });
+
+  // Monthly breakdown
+  const monthlyTotals = Array(12).fill(0).map(() => ({ in: 0, out: 0 }));
+  yearPayments.forEach(p => { monthlyTotals[new Date(p.date).getMonth()].in += p.amount; });
+  yearExpenses.forEach(e => { monthlyTotals[new Date(e.date).getMonth()].out += e.amount; });
+
+  let html = `
+    <div class="report-summary">
+      <div><div class="stat-label">Inntekter</div><div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);">${fmt(totalIn)}</div></div>
+      <div><div class="stat-label">Utgifter</div><div style="font-family:'Fraunces',serif;font-size:24px;color:var(--accent);">${fmt(totalOut)}</div></div>
+      <div><div class="stat-label">Netto</div><div style="font-family:'Fraunces',serif;font-size:24px;">${fmt(totalIn - totalOut)}</div></div>
+      <div><div class="stat-label">Innskudd</div><div style="font-family:'Fraunces',serif;font-size:24px;">${fmt(depositTotal)}</div></div>
+      <div><div class="stat-label">Månedsbidrag</div><div style="font-family:'Fraunces',serif;font-size:24px;">${fmt(monthlyTotal)}</div></div>
+    </div>
+  `;
+
+  if (Object.keys(byCat).length > 0) {
+    html += '<div style="margin-top:24px;"><label>Utgifter per kategori</label><table style="margin-top:8px;"><tbody>';
+    Object.entries(byCat).sort((a,b) => b[1]-a[1]).forEach(([cat, amt]) => {
+      const pct = totalOut > 0 ? Math.round(amt / totalOut * 100) : 0;
+      html += `<tr><td><span class="badge badge-neutral">${escape(cat)}</span></td><td class="num">${fmt(amt)}</td><td style="color:var(--muted);">${pct}%</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  const monthNames = ['Jan','Feb','Mar','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Des'];
+  html += '<div style="margin-top:24px;"><label>Måned for måned</label><table style="margin-top:8px;"><thead><tr><th>Måned</th><th class="num">Inn</th><th class="num">Ut</th><th class="num">Netto</th></tr></thead><tbody>';
+  monthlyTotals.forEach((mt, i) => {
+    if (mt.in === 0 && mt.out === 0) return;
+    html += `<tr><td>${monthNames[i]}</td><td class="num" style="color:var(--green);">${mt.in ? '+' + fmt(mt.in) : '—'}</td><td class="num" style="color:var(--accent);">${mt.out ? '−' + fmt(mt.out) : '—'}</td><td class="num"><strong>${fmt(mt.in - mt.out)}</strong></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  document.getElementById('report-content').innerHTML = html;
+}
+
+// ============ CSV EXPORT ============
+function exportCSV(type) {
+  let csv = '';
+  let filename = '';
+  if (type === 'members') {
+    csv = 'Navn;Innmeldingsdato;Notat;Totalt innskudd;Totalt månedsbidrag\n';
+    state.members.forEach(m => {
+      const mp = state.payments.filter(p => p.memberId === m.id);
+      const dep = mp.filter(p => p.type === 'deposit').reduce((s, p) => s + p.amount, 0);
+      const mon = mp.filter(p => p.type === 'monthly').reduce((s, p) => s + p.amount, 0);
+      csv += `"${m.name}";${m.joinDate};"${m.note || ''}";${dep};${mon}\n`;
+    });
+    filename = 'medlemmer';
+  } else if (type === 'payments') {
+    csv = 'Dato;Medlem;Type;Beløp;Beskrivelse\n';
+    [...state.payments].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(p => {
+      const m = state.members.find(x => x.id === p.memberId);
+      csv += `${p.date};"${m?.name || 'Ukjent'}";${p.type};${p.amount};"${(p.description || '').replace(/"/g, '""')}"\n`;
+    });
+    filename = 'innbetalinger';
+  } else if (type === 'expenses') {
+    csv = 'Dato;Beskrivelse;Kategori;Beløp\n';
+    [...state.expenses].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(e => {
+      csv += `${e.date};"${e.description.replace(/"/g, '""')}";"${e.category}";${e.amount}\n`;
+    });
+    filename = 'utgifter';
+  } else if (type === 'summary') {
+    const totalIn = state.payments.reduce((s,p) => s + p.amount, 0);
+    const totalOut = state.expenses.reduce((s,e) => s + e.amount, 0);
+    csv = 'Felt;Verdi\n';
+    csv += `Klubbnavn;"${state.settings.name}"\n`;
+    csv += `Startsaldo;${state.settings.opening || 0}\n`;
+    csv += `Antall medlemmer;${state.members.length}\n`;
+    csv += `Totalt inn;${totalIn}\n`;
+    csv += `Totalt ut;${totalOut}\n`;
+    csv += `Kassebeholdning;${(state.settings.opening || 0) + totalIn - totalOut}\n`;
+    filename = 'sammendrag';
+  }
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `kunstklubben-${filename}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV lastet ned');
+}
+
+// ============ DRAW ============
+let drawTimer = null;
+function renderDrawParticipants() {
+  const wrap = document.getElementById('draw-participants');
+  if (state.members.length === 0) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:14px;">Ingen medlemmer å trekke fra.</div>';
+    return;
+  }
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">';
+  state.members.forEach(m => {
+    const checked = m.active !== false ? 'checked' : '';
+    html += `<label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--paper-deep);cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:400;">
+      <input type="checkbox" id="draw-chk-${m.id}" ${checked} onchange="toggleDrawActive('${m.id}', this.checked)" style="width:auto;">
+      <span>${escape(m.name)}</span>
+    </label>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+function toggleDrawActive(id, checked) {
+  const m = state.members.find(x => x.id === id);
+  if (m) { m.active = checked; save(); }
+}
+function startDraw() {
+  const participants = state.members.filter(m => m.active !== false);
+  if (participants.length === 0) { toast('Ingen deltakere valgt', true); return; }
+  const btn = document.getElementById('draw-btn');
+  btn.disabled = true;
+  const nameEl = document.getElementById('draw-name');
+  nameEl.classList.add('spinning');
+  let ticks = 0;
+  const totalTicks = 30 + Math.floor(Math.random() * 15);
+  drawTimer = setInterval(() => {
+    nameEl.textContent = participants[Math.floor(Math.random() * participants.length)].name;
+    ticks++;
+    if (ticks >= totalTicks) {
+      clearInterval(drawTimer);
+      const winner = participants[Math.floor(Math.random() * participants.length)];
+      nameEl.textContent = winner.name;
+      nameEl.classList.remove('spinning');
+      state.draws.push({
+        id: uid(), date: new Date().toISOString().slice(0, 10),
+        winnerId: winner.id, participantIds: participants.map(p => p.id)
+      });
+      save();
+      btn.disabled = false;
+      renderDrawHistory();
+      toast('🎉 ' + winner.name + ' vant!');
+    }
+  }, 80);
+}
+function resetDraw() { document.getElementById('draw-name').textContent = '—'; }
+function renderDrawHistory() {
+  const wrap = document.getElementById('draw-history');
+  if (state.draws.length === 0) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:14px;">Ingen trekninger ennå.</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>Dato</th><th>Vinner</th><th>Antall deltakere</th><th></th></tr></thead><tbody>';
+  [...state.draws].reverse().forEach(d => {
+    const w = state.members.find(m => m.id === d.winnerId);
+    html += `<tr>
+      <td>${fmtDate(d.date)}</td>
+      <td><strong>${w ? escape(w.name) : 'Ukjent'}</strong></td>
+      <td>${d.participantIds.length}</td>
+      <td><button class="btn btn-danger btn-small" onclick="deleteDraw('${d.id}')">×</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+function deleteDraw(id) {
+  if (!confirm('Slette trekning?')) return;
+  state.draws = state.draws.filter(d => d.id !== id);
+  save();
+  renderDrawHistory();
+}
+
+// ============ DASHBOARD ============
+function renderDashboard() {
+  const income = state.payments.reduce((s, p) => s + p.amount, 0);
+  const expenses = state.expenses.reduce((s, e) => s + e.amount, 0);
+  const balance = (state.settings.opening || 0) + income - expenses;
+  document.getElementById('stat-balance').textContent = fmt(balance);
+  document.getElementById('stat-balance-sub').textContent = state.settings.opening ? 'inkl. startsaldo ' + fmt(state.settings.opening) : 'basert på registrerte transaksjoner';
+  document.getElementById('stat-members').textContent = state.members.length;
+  document.getElementById('stat-members-sub').textContent = state.members.filter(m => m.active !== false).length + ' aktive';
+  document.getElementById('stat-income').textContent = fmt(income);
+  document.getElementById('stat-expenses').textContent = fmt(expenses);
+
+  const monthNames = ['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember'];
+  const now = new Date();
+  const currentKey = monthKey(now);
+  document.getElementById('current-month-label').textContent = monthNames[now.getMonth()] + ' ' + now.getFullYear();
+
+  const paidThisMonth = new Set(state.payments.filter(p => p.type === 'monthly' && monthKey(p.date) === currentKey).map(p => p.memberId));
+  const activeMembers = state.members.filter(m => m.active !== false && new Date(m.joinDate) <= now);
+
+  if (activeMembers.length === 0) {
+    document.getElementById('month-status').innerHTML = '<div class="empty"><div class="empty-title">Ingen aktive medlemmer</div></div>';
+  } else {
+    const paidCount = activeMembers.filter(m => paidThisMonth.has(m.id)).length;
+    const missingMembers = activeMembers.filter(m => !paidThisMonth.has(m.id));
+    let html = `<div style="display:flex;gap:24px;margin-bottom:16px;flex-wrap:wrap;">
+      <div><span class="badge badge-ok">${paidCount}/${activeMembers.length}</span> har betalt</div>
+      <div style="color:var(--muted);font-size:14px;">Forventet: ${fmt(activeMembers.length * state.settings.monthly)}, mottatt: ${fmt(paidCount * state.settings.monthly)}</div>
+    </div>`;
+    if (missingMembers.length > 0) {
+      html += '<div><label>Mangler innbetaling</label><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">';
+      missingMembers.forEach(m => {
+        html += `<span class="badge badge-warn" style="cursor:pointer;" onclick="openMember('${m.id}')">${escape(m.name)}</span>`;
+      });
+      html += '</div></div>';
+    }
+    document.getElementById('month-status').innerHTML = html;
+  }
+
+  const activity = [
+    ...state.payments.map(p => ({ date: p.date, kind: 'payment', data: p })),
+    ...state.expenses.map(e => ({ date: e.date, kind: 'expense', data: e }))
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+
+  if (activity.length === 0) {
+    document.getElementById('recent-activity').innerHTML = '<div class="empty"><div class="empty-title">Ingen aktivitet ennå</div></div>';
+  } else {
+    let html = '<table><thead><tr><th>Dato</th><th>Hva</th><th class="num">Beløp</th></tr></thead><tbody>';
+    activity.forEach(a => {
+      if (a.kind === 'payment') {
+        const m = state.members.find(x => x.id === a.data.memberId);
+        html += `<tr><td>${fmtDate(a.date)}</td><td>${m ? escape(m.name) : 'Ukjent'} — ${a.data.type === 'deposit' ? 'innskudd' : a.data.type === 'monthly' ? 'månedsbidrag' : 'annet'}</td><td class="num" style="color:var(--green);">+${fmt(a.data.amount)}</td></tr>`;
+      } else {
+        html += `<tr><td>${fmtDate(a.date)}</td><td>${escape(a.data.description)} <span class="badge badge-neutral">${escape(a.data.category)}</span></td><td class="num" style="color:var(--accent);">−${fmt(a.data.amount)}</td></tr>`;
+      }
+    });
+    html += '</tbody></table>';
+    document.getElementById('recent-activity').innerHTML = html;
+  }
+}
+
+// ============ SETTINGS ============
+function loadSettingsUI() {
+  document.getElementById('set-name').value = state.settings.name;
+  document.getElementById('set-deposit').value = state.settings.deposit;
+  document.getElementById('set-monthly').value = state.settings.monthly;
+  document.getElementById('set-startmonth').value = state.settings.startMonth;
+  document.getElementById('set-endmonth').value = state.settings.endMonth;
+  document.getElementById('set-opening').value = state.settings.opening || 0;
+}
+function saveSettings() {
+  state.settings.name = document.getElementById('set-name').value || 'Kunstklubben';
+  state.settings.deposit = parseFloat(document.getElementById('set-deposit').value) || 1000;
+  state.settings.monthly = parseFloat(document.getElementById('set-monthly').value) || 200;
+  state.settings.startMonth = parseInt(document.getElementById('set-startmonth').value);
+  state.settings.endMonth = parseInt(document.getElementById('set-endmonth').value);
+  state.settings.opening = parseFloat(document.getElementById('set-opening').value) || 0;
+  save();
+  toast('Innstillinger lagret');
+  renderAll();
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'kunstklubben-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Sikkerhetskopi lastet ned');
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!confirm('Erstatte gjeldende data med innhold fra fil? Dette overskriver alt i Firebase.')) return;
+      state = { ...state, ...data, settings: { ...state.settings, ...(data.settings || {}) } };
+      save();
+      loadSettingsUI();
+      renderAll();
+      toast('Data importert');
+    } catch (err) {
+      toast('Kunne ikke lese fil', true);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function resetAll() {
+  if (!confirm('Dette sletter ALT — medlemmer, innbetalinger, utgifter og trekninger. Sikker?')) return;
+  if (!confirm('Virkelig sikker? Last ned en sikkerhetskopi først hvis du er usikker.')) return;
+  state.members = [];
+  state.payments = [];
+  state.expenses = [];
+  state.draws = [];
+  state.parsedTx = [];
+  save();
+  renderAll();
+  toast('Alt slettet');
+}
+
+// ============ RENDER ALL ============
+function renderAll() {
+  renderDashboard();
+  renderMembers();
+  renderPayments();
+  renderParsedTx();
+  renderExpenses();
+  renderReports();
+  renderDrawParticipants();
+  renderDrawHistory();
+}
+
+// ============ DRAG-DROP ============
+window.addEventListener('load', () => {
+  const dz = document.getElementById('dropzone');
+  if (!dz) return;
+  ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.add('drag');
+  }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag');
+  }));
+  dz.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f && f.type === 'application/pdf') {
+      const input = document.getElementById('pdfFile');
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      input.files = dt.files;
+      handlePDF({ target: input });
+    } else {
+      toast('Slipp en PDF-fil', true);
+    }
+  });
+
+  document.getElementById('new-member-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('exp-date').value = new Date().toISOString().slice(0, 10);
+});
+
+// Expose for inline onclick
+window.addMember = addMember;
+window.openMember = openMember;
+window.closeMemberModal = closeMemberModal;
+window.deleteMember = deleteMember;
+window.addManualPayment = addManualPayment;
+window.deletePayment = deletePayment;
+window.toggleMonth = toggleMonth;
+window.handlePDF = handlePDF;
+window.confirmMatch = confirmMatch;
+window.skipTx = skipTx;
+window.autoMatchAll = autoMatchAll;
+window.addExpense = addExpense;
+window.deleteExpense = deleteExpense;
+window.startDraw = startDraw;
+window.resetDraw = resetDraw;
+window.toggleDrawActive = toggleDrawActive;
+window.deleteDraw = deleteDraw;
+window.saveSettings = saveSettings;
+window.exportData = exportData;
+window.importData = importData;
+window.resetAll = resetAll;
+window.renderMembers = renderMembers;
+window.renderPayments = renderPayments;
+window.renderReports = renderReports;
+window.exportCSV = exportCSV;
+window.doLogin = doLogin;
+window.doLogout = doLogout;
+</script>
+
+<!--
+═══════════════════════════════════════════════════════════════════
+  OPPSETT AV FIREBASE — GJØR DETTE FØRSTE GANG
+═══════════════════════════════════════════════════════════════════
+
+1. Gå til https://console.firebase.google.com og logg inn med Google-konto
+2. Klikk "Legg til prosjekt" / "Add project"
+   - Gi det et navn, f.eks. "kunstklubben"
+   - Du kan slå av Google Analytics (ikke nødvendig)
+
+3. Velg region: VIKTIG for personvern
+   - Når du oppretter Firestore, velg "europe-west1" (Belgia) eller "europe-north1" (Finland)
+   - Da lagres data i EU
+
+4. Aktiver Authentication:
+   - Klikk "Build" → "Authentication" → "Get started"
+   - Velg "Email/Password" → aktiver "Email/Password" (ikke link-versjonen)
+   - Gå til fanen "Users" → "Add user" → legg inn din e-post + et passord
+   - Dette er innloggingen du skal bruke i appen
+
+5. Aktiver Firestore Database:
+   - Klikk "Build" → "Firestore Database" → "Create database"
+   - Velg "Start in production mode"
+   - Velg EU-region som nevnt over
+
+6. Sett sikkerhetsregler (kritisk!):
+   - I Firestore, gå til fanen "Rules" og lim inn:
+
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{userId} {
+         allow read, write: if request.auth != null && request.auth.uid == userId;
+       }
+     }
+   }
+
+   - Klikk "Publish"
+   - Dette sikrer at kun innlogget bruker kan lese sine egne data
+
+7. Hent config-nøklene:
+   - Klikk tannhjulet (øverst venstre) → "Project settings"
+   - Scroll ned til "Your apps" → klikk </> (web-ikonet)
+   - Gi appen et kallenavn, f.eks. "Kunstklubben web"
+   - IKKE huk av for Firebase Hosting
+   - Klikk "Register app"
+   - Du får en `firebaseConfig`-blokk. Kopier de seks verdiene
+     (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId)
+   - Lim dem inn øverst i denne HTML-filen — let etter "DIN_API_KEY_HER"
+
+8. Lagre filen og åpne i nettleseren
+   - Logg inn med e-post + passord du opprettet i punkt 4
+   - Klart!
+
+═══════════════════════════════════════════════════════════════════
+  PERSONVERN-NOTAT
+═══════════════════════════════════════════════════════════════════
+
+Med oppsett som over:
+- Data lagres i EU (innenfor GDPR)
+- Kun du (med ditt passord) har tilgang
+- Google er "databehandler", du er "behandlingsansvarlig"
+- For en jobbklubb med < 30 medlemmer er dette godt innenfor lovverket
+- Husk å informere medlemmene: "Jeg fører elektronisk register
+  over hvem som har betalt. Si fra hvis du vil slettes."
+
+═══════════════════════════════════════════════════════════════════
+-->
+
+</body>
+</html>
