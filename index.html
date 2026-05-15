@@ -1119,6 +1119,7 @@
             <option>Maleri</option>
             <option>Grafikk</option>
             <option>Litografi</option>
+            <option>Giclée</option>
             <option>Tresnitt</option>
             <option>Akvarell</option>
             <option>Tegning</option>
@@ -3431,7 +3432,7 @@ function openArtwork(id) {
     <input type="text" id="edit-artwork-artist" value="${escape(a.artist)}" style="margin-bottom:8px;">
     <div class="form-grid">
       <div><label>Type</label><select id="edit-artwork-type">
-        ${['Maleri','Grafikk','Litografi','Tresnitt','Akvarell','Tegning','Foto','Skulptur','Annet'].map(t => `<option ${a.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+        ${['Maleri','Grafikk','Litografi','Giclée','Tresnitt','Akvarell','Tegning','Foto','Skulptur','Annet'].map(t => `<option ${a.type === t ? 'selected' : ''}>${t}</option>`).join('')}
       </select></div>
       <div><label>Høyde (cm)</label><input type="number" id="edit-artwork-height" value="${a.height || ''}"></div>
       <div><label>Bredde (cm)</label><input type="number" id="edit-artwork-width" value="${a.width || ''}"></div>
