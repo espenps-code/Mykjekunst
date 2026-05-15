@@ -917,10 +917,23 @@
         <div class="section-title">Data<em>håndtering</em></div>
       </div>
       <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Data lagres i Firebase (EU-region) og synkroniseres automatisk mellom enhetene dine.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
         <button class="btn btn-secondary" onclick="exportData()">Last ned sikkerhetskopi (JSON)</button>
         <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Importer fra fil</button>
         <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:16px;">
+        <label style="margin-bottom:12px;">Presis sletting</label>
+        <p style="color:var(--muted);margin-bottom:12px;font-size:13px;">Slett kun deler av regnskapet. Medlemmer og innstillinger beholdes.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+          <button class="btn btn-danger" onclick="resetPayments()">Slett alle innbetalinger</button>
+          <button class="btn btn-danger" onclick="resetExpenses()">Slett alle utgifter</button>
+          <button class="btn btn-danger" onclick="resetPaymentsAndExpenses()">Slett innbetalinger + utgifter</button>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:16px;">
+        <label style="margin-bottom:12px;">Full nullstilling</label>
+        <p style="color:var(--muted);margin-bottom:12px;font-size:13px;">Sletter <strong>alt</strong> inkludert medlemmer og trekninger.</p>
         <button class="btn btn-danger" onclick="resetAll()">Slett alle data</button>
       </div>
     </div>
@@ -2546,6 +2559,41 @@ function resetAll() {
   toast('Alt slettet');
 }
 
+function resetPayments() {
+  const n = state.payments.length;
+  if (n === 0) { toast('Ingen innbetalinger å slette'); return; }
+  if (!confirm(`Slette alle ${n} innbetalinger? Medlemmer og innstillinger beholdes.`)) return;
+  state.payments = [];
+  state.parsedTx = state.parsedTx.filter(t => t.direction === 'out'); // keep parsed expenses
+  save();
+  renderAll();
+  toast(`${n} innbetalinger slettet`);
+}
+
+function resetExpenses() {
+  const n = state.expenses.length;
+  if (n === 0) { toast('Ingen utgifter å slette'); return; }
+  if (!confirm(`Slette alle ${n} utgifter? Medlemmer og innstillinger beholdes.`)) return;
+  state.expenses = [];
+  state.parsedTx = state.parsedTx.filter(t => t.direction !== 'out'); // keep parsed incomes
+  save();
+  renderAll();
+  toast(`${n} utgifter slettet`);
+}
+
+function resetPaymentsAndExpenses() {
+  const nP = state.payments.length;
+  const nE = state.expenses.length;
+  if (nP === 0 && nE === 0) { toast('Ingenting å slette'); return; }
+  if (!confirm(`Slette alle ${nP} innbetalinger og ${nE} utgifter? Medlemmer og innstillinger beholdes.`)) return;
+  state.payments = [];
+  state.expenses = [];
+  state.parsedTx = []; // clear all parsed transactions waiting for matching
+  save();
+  renderAll();
+  toast(`${nP + nE} oppføringer slettet`);
+}
+
 // ============ RENDER ALL ============
 function renderAll() {
   renderDashboard();
@@ -2616,6 +2664,9 @@ window.saveSettings = saveSettings;
 window.exportData = exportData;
 window.importData = importData;
 window.resetAll = resetAll;
+window.resetPayments = resetPayments;
+window.resetExpenses = resetExpenses;
+window.resetPaymentsAndExpenses = resetPaymentsAndExpenses;
 window.renderMembers = renderMembers;
 window.renderPayments = renderPayments;
 window.renderReports = renderReports;
