@@ -1335,6 +1335,7 @@ let state = {
 
 let currentMemberId = null;
 let currentArtworkId = null;
+let editingExpenseId = null;
 let pendingArtworkImage = null;
 let pendingEditImage = null;
 let labelPrintSelection = new Set();
@@ -2464,16 +2465,75 @@ function renderExpenses() {
   const sorted = [...state.expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
   let html = '<table><thead><tr><th>Dato</th><th>Beskrivelse</th><th>Kategori</th><th class="num">Beløp</th><th></th></tr></thead><tbody>';
   sorted.forEach(e => {
-    html += `<tr>
-      <td>${fmtDate(e.date)}</td>
-      <td>${escape(e.description)}</td>
-      <td><span class="badge badge-neutral">${escape(e.category)}</span></td>
-      <td class="num">${fmt(e.amount)}</td>
-      <td><button class="btn btn-danger btn-small" onclick="deleteExpense('${e.id}')">×</button></td>
-    </tr>`;
+    if (editingExpenseId === e.id) {
+      // Edit row
+      const categories = ['Kunstkjøp','Trekning / premie','Møte / servering','Administrasjon','Annet'];
+      html += `<tr style="background:var(--paper-deep);">
+        <td><input type="date" id="edit-exp-date-${e.id}" value="${e.date}" style="font-size:13px;padding:6px 8px;"></td>
+        <td><input type="text" id="edit-exp-desc-${e.id}" value="${escape(e.description)}" style="font-size:13px;padding:6px 8px;"></td>
+        <td><select id="edit-exp-cat-${e.id}" style="font-size:13px;padding:6px 8px;">
+          ${categories.map(c => `<option ${e.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+        </select></td>
+        <td class="num"><input type="number" id="edit-exp-amt-${e.id}" value="${e.amount}" style="font-size:13px;padding:6px 8px;text-align:right;"></td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-small" onclick="saveExpenseEdit('${e.id}')">Lagre</button>
+          <button class="btn btn-secondary btn-small" onclick="cancelExpenseEdit()" style="margin-left:4px;">Avbryt</button>
+        </td>
+      </tr>`;
+    } else {
+      // Normal row
+      html += `<tr>
+        <td>${fmtDate(e.date)}</td>
+        <td>${escape(e.description)}</td>
+        <td><span class="badge badge-neutral">${escape(e.category)}</span></td>
+        <td class="num">${fmt(e.amount)}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-secondary btn-small" onclick="startExpenseEdit('${e.id}')">Rediger</button>
+          <button class="btn btn-danger btn-small" onclick="deleteExpense('${e.id}')" style="margin-left:4px;">×</button>
+        </td>
+      </tr>`;
+    }
   });
   html += '</tbody></table>';
   list.innerHTML = html;
+}
+
+function startExpenseEdit(id) {
+  editingExpenseId = id;
+  renderExpenses();
+  // Focus the description field
+  setTimeout(() => {
+    const el = document.getElementById('edit-exp-desc-' + id);
+    if (el) { el.focus(); el.select(); }
+  }, 50);
+}
+
+function cancelExpenseEdit() {
+  editingExpenseId = null;
+  renderExpenses();
+}
+
+function saveExpenseEdit(id) {
+  const e = state.expenses.find(x => x.id === id);
+  if (!e) return;
+
+  const newDate = document.getElementById('edit-exp-date-' + id).value;
+  const newDesc = document.getElementById('edit-exp-desc-' + id).value.trim();
+  const newCat = document.getElementById('edit-exp-cat-' + id).value;
+  const newAmt = parseFloat(document.getElementById('edit-exp-amt-' + id).value);
+
+  if (!newDesc) { toast('Beskrivelse kan ikke være tom', true); return; }
+  if (!newAmt || newAmt <= 0) { toast('Ugyldig beløp', true); return; }
+
+  e.date = newDate || e.date;
+  e.description = newDesc;
+  e.category = newCat;
+  e.amount = newAmt;
+
+  editingExpenseId = null;
+  save();
+  toast('Utgift oppdatert');
+  renderAll();
 }
 
 // ============ REPORTS ============
@@ -3716,6 +3776,9 @@ window.skipTx = skipTx;
 window.autoMatchAll = autoMatchAll;
 window.addExpense = addExpense;
 window.deleteExpense = deleteExpense;
+window.startExpenseEdit = startExpenseEdit;
+window.cancelExpenseEdit = cancelExpenseEdit;
+window.saveExpenseEdit = saveExpenseEdit;
 window.startDraw = startDraw;
 window.resetDraw = resetDraw;
 window.toggleDrawActive = toggleDrawActive;
