@@ -1427,7 +1427,12 @@ async function handleCSV(file) {
     }
     state.parsedTx = txs;
     save();
-    document.getElementById('pdf-status').innerHTML = '<div style="color:var(--green);font-weight:600;">✓ Fant ' + txs.length + ' innbetalinger.</div>';
+    const inN = txs.filter(t => t.direction !== 'out').length;
+    const outN = txs.filter(t => t.direction === 'out').length;
+    let msg = '✓ Fant ' + inN + ' innbetalinger';
+    if (outN > 0) msg += ' og ' + outN + ' utgifter';
+    msg += '.';
+    document.getElementById('pdf-status').innerHTML = '<div style="color:var(--green);font-weight:600;">' + msg + '</div>';
     renderParsedTx();
   } catch (err) {
     console.error(err);
@@ -1494,18 +1499,26 @@ function parseBankCSV(text) {
     const dateStr = fields[dateIdx] || '';
     const desc = (descIdx >= 0 ? fields[descIdx] : '') || '';
 
-    // Determine amount: prefer "inn på konto" column if exists, fallback to single amount column
+    // Determine amount and direction (in or out)
     let amount = null;
-    if (inIdx >= 0) {
-      const inVal = parseAmount(fields[inIdx]);
+    let direction = null; // 'in' or 'out'
+
+    if (inIdx >= 0 || outIdx >= 0) {
+      const inVal = inIdx >= 0 ? parseAmount(fields[inIdx]) : null;
       const outVal = outIdx >= 0 ? parseAmount(fields[outIdx]) : null;
-      // Only treat as income if "in" has a value and "out" is empty
-      if (inVal && inVal > 0 && (!outVal || outVal === 0)) {
+      if (inVal && inVal > 0) {
         amount = inVal;
+        direction = 'in';
+      } else if (outVal && outVal > 0) {
+        amount = outVal;
+        direction = 'out';
       }
     } else if (amountIdx >= 0) {
       const amt = parseAmount(fields[amountIdx]);
-      if (amt && amt > 0) amount = amt;
+      if (amt) {
+        amount = Math.abs(amt);
+        direction = amt < 0 ? 'out' : 'in';
+      }
     }
 
     if (!amount) continue;
@@ -1517,6 +1530,7 @@ function parseBankCSV(text) {
     txs.push({
       date,
       amount,
+      direction,
       description: desc.replace(/\s+/g, ' ').trim().slice(0, 200),
       rawLine: lines[i]
     });
@@ -1610,7 +1624,7 @@ function parseTransactions(text) {
     const date = year + '-' + month + '-' + day;
 
     const desc = line.replace(datePattern, '').replace(/-?\d{1,3}(?:[\s.]\d{3})*[,.]\d{2}/g, '').trim();
-    txs.push({ date, amount, description: desc.slice(0, 100), rawLine: line });
+    txs.push({ date, amount, direction: 'in', description: desc.slice(0, 100), rawLine: line });
   });
 
   const seen = new Set();
@@ -1627,47 +1641,240 @@ function renderParsedTx() {
   if (state.parsedTx.length === 0) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
   const container = document.getElementById('parsed-transactions');
+
+  // Count summary
+  const inCount = state.parsedTx.filter(t => t.direction !== 'out').length;
+  const outCount = state.parsedTx.filter(t => t.direction === 'out').length;
+
   let html = '';
-  state.parsedTx.forEach((tx, idx) => {
-    const suggested = suggestMember(tx);
-    html += `<div class="match-item">
-      <div class="match-tx">
-        <div class="match-tx-date">${fmtDate(tx.date)}</div>
-        <div class="match-tx-amount">${fmt(tx.amount)}</div>
-        <div class="match-tx-desc">${escape(tx.description)}</div>
-      </div>
-      <div>
-        <select id="match-select-${idx}" style="width:100%;">
-          <option value="">— Velg medlem —</option>
-          ${state.members.map(m => `<option value="${m.id}" ${suggested && suggested.id === m.id ? 'selected' : ''}>${escape(m.name)}</option>`).join('')}
-          <option value="__skip__">Hopp over (ikke innbetaling)</option>
-        </select>
-        <select id="match-type-${idx}" style="width:100%;margin-top:6px;">
-          <option value="auto" ${guessType(tx) === 'auto' ? 'selected' : ''}>Auto (basert på beløp)</option>
-          <option value="deposit" ${guessType(tx) === 'deposit' ? 'selected' : ''}>Innskudd</option>
-          <option value="monthly" ${guessType(tx) === 'monthly' ? 'selected' : ''}>Månedsbidrag</option>
-          <option value="other">Annet</option>
-        </select>
-      </div>
-      <div>
-        <button class="btn btn-small" onclick="confirmMatch(${idx})">Registrer</button>
-        <button class="btn btn-secondary btn-small" onclick="skipTx(${idx})" style="margin-top:4px;display:block;width:100%;">Hopp over</button>
-      </div>
+  if (inCount > 0 && outCount > 0) {
+    html += `<div style="background:var(--paper-deep);padding:12px 16px;margin-bottom:12px;font-size:13px;color:var(--muted);">
+      <strong style="color:var(--ink);">${inCount}</strong> innbetalinger og <strong style="color:var(--ink);">${outCount}</strong> utgifter funnet.
     </div>`;
+  }
+
+  state.parsedTx.forEach((tx, idx) => {
+    const isOut = tx.direction === 'out';
+    if (isOut) {
+      // Expense row
+      const guessedCategory = guessExpenseCategory(tx);
+      html += `<div class="match-item" style="border-left:3px solid var(--accent);padding-left:13px;">
+        <div class="match-tx">
+          <div class="match-tx-date">${fmtDate(tx.date)} <span style="background:var(--accent);color:white;padding:1px 6px;font-size:9px;letter-spacing:0.1em;margin-left:6px;">UTGIFT</span></div>
+          <div class="match-tx-amount" style="color:var(--accent);">−${fmt(tx.amount)}</div>
+          <div class="match-tx-desc">${escape(tx.description)}</div>
+        </div>
+        <div>
+          <input type="text" id="match-expdesc-${idx}" value="${escape(tx.description)}" placeholder="Beskrivelse" style="width:100%;margin-bottom:6px;font-size:13px;">
+          <select id="match-expcat-${idx}" style="width:100%;">
+            <option ${guessedCategory === 'Kunstkjøp' ? 'selected' : ''}>Kunstkjøp</option>
+            <option ${guessedCategory === 'Trekning / premie' ? 'selected' : ''}>Trekning / premie</option>
+            <option ${guessedCategory === 'Møte / servering' ? 'selected' : ''}>Møte / servering</option>
+            <option ${guessedCategory === 'Administrasjon' ? 'selected' : ''}>Administrasjon</option>
+            <option ${guessedCategory === 'Annet' ? 'selected' : ''}>Annet</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn btn-small" onclick="confirmExpense(${idx})">Registrer</button>
+          <button class="btn btn-secondary btn-small" onclick="skipTx(${idx})" style="margin-top:4px;display:block;width:100%;">Hopp over</button>
+        </div>
+      </div>`;
+    } else {
+      // Income row (existing UI)
+      const suggested = suggestMember(tx);
+      const splitInfo = detectSplit(tx);
+      html += `<div class="match-item">
+        <div class="match-tx">
+          <div class="match-tx-date">${fmtDate(tx.date)} <span style="background:var(--green);color:white;padding:1px 6px;font-size:9px;letter-spacing:0.1em;margin-left:6px;">INN</span></div>
+          <div class="match-tx-amount">${fmt(tx.amount)}</div>
+          <div class="match-tx-desc">${escape(tx.description)}</div>
+          ${splitInfo ? `<div style="margin-top:6px;font-size:11px;color:var(--accent);font-style:italic;">Trolig ${splitInfo.label}</div>` : ''}
+        </div>
+        <div>
+          <select id="match-select-${idx}" style="width:100%;">
+            <option value="">— Velg medlem —</option>
+            ${state.members.map(m => `<option value="${m.id}" ${suggested && suggested.id === m.id ? 'selected' : ''}>${escape(m.name)}</option>`).join('')}
+            <option value="__skip__">Hopp over (ikke innbetaling)</option>
+          </select>
+          <select id="match-type-${idx}" style="width:100%;margin-top:6px;">
+            <option value="auto" ${guessType(tx) === 'auto' ? 'selected' : ''}>Auto (basert på beløp)</option>
+            <option value="deposit" ${guessType(tx) === 'deposit' ? 'selected' : ''}>Innskudd</option>
+            <option value="monthly" ${guessType(tx) === 'monthly' ? 'selected' : ''}>Månedsbidrag</option>
+            <option value="other">Annet</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn btn-small" onclick="confirmMatch(${idx})">Registrer</button>
+          ${splitInfo ? `<button class="btn btn-secondary btn-small" onclick="splitMatch(${idx})" style="margin-top:4px;display:block;width:100%;" title="${splitInfo.tooltip}">Splitt</button>` : ''}
+          <button class="btn btn-secondary btn-small" onclick="skipTx(${idx})" style="margin-top:4px;display:block;width:100%;">Hopp over</button>
+        </div>
+      </div>`;
+    }
   });
   container.innerHTML = html;
 }
 
-function suggestMember(tx) {
-  const desc = tx.description.toLowerCase();
-  for (const m of state.members) {
-    const firstName = m.name.split(' ')[0].toLowerCase();
-    const lastName = m.name.split(' ').slice(-1)[0].toLowerCase();
-    if (firstName.length > 2 && desc.includes(firstName)) return m;
-    if (lastName.length > 2 && desc.includes(lastName)) return m;
-    if (m.note && m.note.length > 2 && desc.includes(m.note.toLowerCase())) return m;
+function guessExpenseCategory(tx) {
+  const d = (tx.description || '').toLowerCase();
+  // Simple heuristics on common Norwegian banking terms
+  if (/galleri|kunst|maleri|billedkunstn|grafikk|litografi|skulpt/.test(d)) return 'Kunstkjøp';
+  if (/premie|trekning|gavekort/.test(d)) return 'Trekning / premie';
+  if (/kafé|cafe|restaur|servering|catering|joker|kiwi|rema|coop|spar|meny/.test(d)) return 'Møte / servering';
+  if (/gebyr|porto|posten|admin|kontofør/.test(d)) return 'Administrasjon';
+  return 'Annet';
+}
+
+function confirmExpense(idx) {
+  const tx = state.parsedTx[idx];
+  const desc = document.getElementById('match-expdesc-' + idx).value.trim() || tx.description || 'Uten beskrivelse';
+  const cat = document.getElementById('match-expcat-' + idx).value;
+
+  // Check duplicate
+  const dup = state.expenses.find(e => e.date === tx.date && Math.abs(e.amount - tx.amount) < 1 && e.description === desc);
+  if (dup && !confirm('Det finnes allerede en lignende utgift. Legg til likevel?')) return;
+
+  state.expenses.push({
+    id: uid(),
+    date: tx.date,
+    amount: tx.amount,
+    category: cat,
+    description: desc
+  });
+  state.parsedTx.splice(idx, 1);
+  save();
+  toast('Utgift registrert');
+  renderAll();
+}
+
+// Detect if amount can be split into deposit + N monthly contributions
+function detectSplit(tx) {
+  const dep = state.settings.deposit;
+  const mon = state.settings.monthly;
+  if (!dep || !mon) return null;
+
+  // Case 1: deposit + 1..12 monthly = total
+  for (let n = 1; n <= 12; n++) {
+    if (Math.abs(tx.amount - (dep + n * mon)) < 0.5) {
+      return {
+        deposit: dep,
+        monthlyCount: n,
+        monthlyAmount: mon,
+        label: `innskudd (${fmt(dep)}) + ${n} × månedsbidrag (${fmt(mon)})`,
+        tooltip: `Splitt i ${fmt(dep)} innskudd og ${n} × ${fmt(mon)} månedsbidrag`
+      };
+    }
   }
+
+  // Case 2: only multiple monthly bidrag, e.g. 400 = 2 × 200
+  for (let n = 2; n <= 12; n++) {
+    if (Math.abs(tx.amount - n * mon) < 0.5) {
+      return {
+        deposit: 0,
+        monthlyCount: n,
+        monthlyAmount: mon,
+        label: `${n} × månedsbidrag (${fmt(mon)})`,
+        tooltip: `Splitt i ${n} × ${fmt(mon)} månedsbidrag`
+      };
+    }
+  }
+
   return null;
+}
+
+function splitMatch(idx) {
+  const sel = document.getElementById('match-select-' + idx);
+  const tx = state.parsedTx[idx];
+  if (!sel.value) { toast('Velg medlem først', true); return; }
+  if (sel.value === '__skip__') { skipTx(idx); return; }
+
+  const split = detectSplit(tx);
+  if (!split) { toast('Kan ikke splittes', true); return; }
+
+  const memberId = sel.value;
+  const baseDate = tx.date;
+  const m = state.members.find(x => x.id === memberId);
+
+  // Build confirmation message
+  const parts = [];
+  if (split.deposit > 0) parts.push(`${fmt(split.deposit)} som innskudd`);
+  if (split.monthlyCount > 0) parts.push(`${split.monthlyCount} × ${fmt(split.monthlyAmount)} som månedsbidrag`);
+  if (!confirm(`Splitt ${fmt(tx.amount)} for ${m.name}:\n\n${parts.join('\n')}\n\nFortsette?`)) return;
+
+  // Add deposit if any
+  if (split.deposit > 0) {
+    state.payments.push({
+      id: uid(), memberId, date: baseDate,
+      amount: split.deposit, type: 'deposit',
+      description: tx.description + ' (splittet — innskudd)'
+    });
+  }
+
+  // Spread monthly payments: first one on tx date, then one per month going back
+  // (assumption: payment covers current month and previous months)
+  // Actually simpler: spread them starting from tx month and going forward for missing months,
+  // or just stamp all on tx date (most accurate to bank entry). Let's spread by month for clarity.
+  const baseDateObj = new Date(baseDate);
+  for (let i = 0; i < split.monthlyCount; i++) {
+    // Spread monthly payments starting from the month of the tx, going back in time
+    // (assumes: someone catching up pays for past months)
+    const d = new Date(baseDateObj);
+    d.setMonth(d.getMonth() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    state.payments.push({
+      id: uid(), memberId, date: dateStr,
+      amount: split.monthlyAmount, type: 'monthly',
+      description: tx.description + ' (splittet — månedsbidrag ' + (i+1) + '/' + split.monthlyCount + ')'
+    });
+  }
+
+  state.parsedTx.splice(idx, 1);
+  save();
+  toast(`Splittet i ${(split.deposit ? 1 : 0) + split.monthlyCount} innbetalinger`);
+  renderAll();
+}
+
+function suggestMember(tx) {
+  // Tokenize description into words (lowercased, normalized).
+  // We split on anything that isn't a Norwegian letter, so "08.24" and "Kl.07" become separate "words"
+  // and stray digits don't get mashed into names.
+  const desc = tx.description.toLowerCase();
+  const words = new Set(
+    desc.split(/[^a-zæøåéèüöä]+/i)
+        .map(w => w.toLowerCase())
+        .filter(w => w.length >= 3)
+  );
+
+  let bestMember = null;
+  let bestScore = 0;
+
+  for (const m of state.members) {
+    const parts = m.name.toLowerCase().split(/\s+/).filter(p => p.length >= 3);
+    if (parts.length === 0) continue;
+
+    // Score: each name-part as whole word = 1 point. Last name (most specific) worth extra.
+    let score = 0;
+    parts.forEach((p, i) => {
+      if (words.has(p)) {
+        score += 1;
+        // Last name is heavier (most distinguishing), middle names slightly heavier than first
+        if (i === parts.length - 1) score += 2; // last name bonus
+        else if (i > 0) score += 0.5; // middle name bonus
+      }
+    });
+
+    // Bonus: if note matches as a substring (notes can be longer phrases the user explicitly set)
+    if (m.note && m.note.length >= 3 && desc.includes(m.note.toLowerCase())) {
+      score += 10;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMember = m;
+    }
+  }
+
+  // Require at least one whole-word match
+  return bestScore >= 1 ? bestMember : null;
 }
 
 function guessType(tx) {
@@ -1715,6 +1922,8 @@ function autoMatchAll() {
   let matched = 0;
   const remaining = [];
   state.parsedTx.forEach(tx => {
+    // Skip expenses — they need manual category assignment
+    if (tx.direction === 'out') { remaining.push(tx); return; }
     const m = suggestMember(tx);
     if (!m) { remaining.push(tx); return; }
     const dep = state.settings.deposit;
@@ -2392,6 +2601,8 @@ window.toggleMonth = toggleMonth;
 window.handlePDF = handlePDF;
 window.handleImportFile = handleImportFile;
 window.confirmMatch = confirmMatch;
+window.splitMatch = splitMatch;
+window.confirmExpense = confirmExpense;
 window.skipTx = skipTx;
 window.autoMatchAll = autoMatchAll;
 window.addExpense = addExpense;
