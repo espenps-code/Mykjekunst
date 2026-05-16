@@ -825,6 +825,15 @@
     margin: 0 auto 20px;
     box-sizing: border-box;
     position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .catalog-entries {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    flex: 1;
+    gap: 8mm;
   }
   .catalog-cover {
     display: flex;
@@ -888,14 +897,12 @@
     display: grid;
     grid-template-columns: 55mm 1fr;
     gap: 9mm;
-    margin-bottom: 14mm;
     page-break-inside: avoid;
     break-inside: avoid;
   }
   .catalog-entry.large {
     grid-template-columns: 75mm 1fr;
     gap: 11mm;
-    margin-bottom: 16mm;
     page-break-inside: avoid;
     break-inside: avoid;
   }
@@ -4411,34 +4418,65 @@ function renderCatalogSheet() {
     <div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div>
   </div>`;
 
+  // Helper: split items into chunks of fixed size
+  const chunk = (arr, size) => {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  };
+
+  const PER_PAGE_A = 2;  // 2 A-trekning verk per side (større format)
+  const PER_PAGE_B = 3;  // 3 B-trekning eller lotteri-verk per side
+
   // ---- A-trekning page(s) ----
   if (aArtworks.length > 0) {
-    html += `<div class="catalog-page">
-      <div class="catalog-section-header">A-<em>trekning</em><span class="count">${aArtworks.length} verk</span></div>`;
-    aArtworks.forEach(a => {
-      html += renderCatalogEntry(a, true);
+    const pages = chunk(aArtworks, PER_PAGE_A);
+    pages.forEach((items, pageIdx) => {
+      html += `<div class="catalog-page">`;
+      if (pageIdx === 0) {
+        html += `<div class="catalog-section-header">A-<em>trekning</em><span class="count">${aArtworks.length} verk</span></div>`;
+      }
+      html += `<div class="catalog-entries">`;
+      items.forEach(a => {
+        html += renderCatalogEntry(a, true);
+      });
+      html += `</div>`;
+      html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
     });
-    html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
   }
 
   // ---- B-trekning page(s) ----
   if (bArtworks.length > 0) {
-    html += `<div class="catalog-page">
-      <div class="catalog-section-header">B-<em>trekning</em><span class="count">${bArtworks.length} verk</span></div>`;
-    bArtworks.forEach(a => {
-      html += renderCatalogEntry(a, false);
+    const pages = chunk(bArtworks, PER_PAGE_B);
+    pages.forEach((items, pageIdx) => {
+      html += `<div class="catalog-page">`;
+      if (pageIdx === 0) {
+        html += `<div class="catalog-section-header">B-<em>trekning</em><span class="count">${bArtworks.length} verk</span></div>`;
+      }
+      html += `<div class="catalog-entries">`;
+      items.forEach(a => {
+        html += renderCatalogEntry(a, false);
+      });
+      html += `</div>`;
+      html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
     });
-    html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
   }
 
-  // ---- Unspecified ----
+  // ---- Lotteri ----
   if (includeUnspecified && unspecified.length > 0) {
-    html += `<div class="catalog-page">
-      <div class="catalog-section-header">Lotteri<span class="count">${unspecified.length} verk</span></div>`;
-    unspecified.forEach(a => {
-      html += renderCatalogEntry(a, false);
+    const pages = chunk(unspecified, PER_PAGE_B);
+    pages.forEach((items, pageIdx) => {
+      html += `<div class="catalog-page">`;
+      if (pageIdx === 0) {
+        html += `<div class="catalog-section-header">Lotteri<span class="count">${unspecified.length} verk</span></div>`;
+      }
+      html += `<div class="catalog-entries">`;
+      items.forEach(a => {
+        html += renderCatalogEntry(a, false);
+      });
+      html += `</div>`;
+      html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
     });
-    html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
   }
 
   sheet.innerHTML = html;
