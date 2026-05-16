@@ -886,15 +886,18 @@
   }
   .catalog-entry {
     display: grid;
-    grid-template-columns: 70mm 1fr;
-    gap: 8mm;
-    margin-bottom: 12mm;
+    grid-template-columns: 55mm 1fr;
+    gap: 9mm;
+    margin-bottom: 14mm;
     page-break-inside: avoid;
+    break-inside: avoid;
   }
   .catalog-entry.large {
-    grid-template-columns: 90mm 1fr;
-    gap: 10mm;
-    margin-bottom: 14mm;
+    grid-template-columns: 75mm 1fr;
+    gap: 11mm;
+    margin-bottom: 16mm;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   .catalog-entry-img {
     width: 100%;
@@ -918,46 +921,48 @@
     font-size: 36pt;
   }
   .catalog-entry-body {
-    padding-top: 2mm;
+    padding-top: 1mm;
+    min-width: 0; /* prevents overflow on long text */
   }
   .catalog-entry-title {
     font-family: 'Fraunces', serif;
-    font-size: 20pt;
+    font-size: 17pt;
     font-weight: 600;
-    line-height: 1.1;
+    line-height: 1.15;
     margin-bottom: 2mm;
   }
   .catalog-entry.large .catalog-entry-title {
-    font-size: 26pt;
+    font-size: 22pt;
     margin-bottom: 3mm;
   }
   .catalog-entry-artist {
     font-family: 'Fraunces', serif;
     font-style: italic;
     color: #b8410f;
-    font-size: 14pt;
+    font-size: 12pt;
     margin-bottom: 4mm;
   }
   .catalog-entry.large .catalog-entry-artist {
-    font-size: 16pt;
+    font-size: 14pt;
     margin-bottom: 5mm;
   }
   .catalog-entry-meta {
-    font-size: 9.5pt;
+    font-size: 8.5pt;
     color: #8a8275;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     margin-bottom: 4mm;
-    line-height: 1.5;
+    line-height: 1.55;
   }
   .catalog-entry-meta strong { color: #1a1814; font-weight: 600; }
   .catalog-entry-bio {
-    font-size: 10pt;
+    font-size: 9.5pt;
     line-height: 1.55;
     color: #1a1814;
   }
   .catalog-entry.large .catalog-entry-bio {
-    font-size: 10.5pt;
+    font-size: 10pt;
+    line-height: 1.6;
   }
   .catalog-page-footer {
     position: absolute;
