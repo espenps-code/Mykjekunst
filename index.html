@@ -1240,6 +1240,7 @@
           <label>Kategori</label>
           <select id="inc-category">
             <option>Renteinntekt</option>
+            <option>Lotteri</option>
             <option>Gave</option>
             <option>Refusjon</option>
             <option>Annet</option>
@@ -1432,20 +1433,20 @@
       <div class="section-header">
         <div class="section-title">Trekning ved <em>skoleslutt</em></div>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-secondary btn-small draw-type-btn active" id="draw-tab-plan" onclick="switchDrawType('plan')">Årets trekning</button>
-          <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-A" onclick="switchDrawType('A')">A-trekning</button>
+          <button class="btn btn-secondary btn-small draw-type-btn active" id="draw-tab-A" onclick="switchDrawType('A')">A-trekning</button>
           <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-B" onclick="switchDrawType('B')">B-trekning</button>
+          <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-plan" onclick="switchDrawType('plan')">Årets trekning</button>
         </div>
       </div>
 
       <!-- Planning view (kasserer's overview) -->
-      <div id="draw-plan-view">
-        <p style="color:var(--muted);margin-bottom:24px;font-size:14px;">Oversikt for kassereren. Sjekk inntekter, klargjøring av kunst og budsjett før trekningskvelden — hold dette skjult under selve seremonien.</p>
+      <div id="draw-plan-view" style="display:none;">
+        <p style="color:var(--muted);margin-bottom:24px;font-size:14px;">Oversikt for kassereren. Sjekk inntekter, klargjøring av kunst og budsjett før trekningskvelden — hold dette skjult under selve seremonien. Oversikten følger skoleåret og nullstilles automatisk 1. august hvert år.</p>
         <div id="draw-plan-content"></div>
       </div>
 
       <!-- Actual draw view (A or B) -->
-      <div id="draw-active-view" style="display:none;">
+      <div id="draw-active-view">
         <p style="color:var(--muted);margin-bottom:20px;font-size:14px;" id="draw-description"></p>
 
         <div class="draw-stage">
@@ -2794,7 +2795,7 @@ function renderOtherIncome() {
   }
   const sorted = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
   let html = '<table><thead><tr><th>Dato</th><th>Beskrivelse</th><th>Kategori</th><th class="num">Beløp</th><th></th></tr></thead><tbody>';
-  const categories = ['Renteinntekt','Gave','Refusjon','Annet'];
+  const categories = ['Renteinntekt','Lotteri','Gave','Refusjon','Annet'];
   sorted.forEach(i => {
     if (editingIncomeId === i.id) {
       html += `<tr style="background:var(--paper-deep);">
