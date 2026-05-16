@@ -3200,7 +3200,7 @@ function renderDrawParticipants() {
   const descEl = document.getElementById('draw-description');
 
   if (currentDrawType === 'A') {
-    descEl.innerHTML = `Hovedtrekningen. <strong>Hvert medlem har sin egen 3-årsperiode</strong> som starter når de melder seg inn. I løpet av denne perioden skal medlemmet vinne A-trekningen én gang. Når perioden er over, nullstilles medlemmet og starter sin neste 3-årsperiode.<br><br><span style="font-size:12px;">Medlemmer registrert før august 2026 har felles startpunkt der.</span>`;
+    descEl.innerHTML = `Hovedtrekningen. <strong>Hvert medlem har sin egen 3-årsperiode</strong> som starter når de melder seg inn. I løpet av denne perioden skal medlemmet vinne A-trekningen én gang. <strong>Medlemmer med 1 år igjen prioriteres</strong> (siste sjanse), så de med 2 år, så de med 3 år. Når perioden er over, nullstilles medlemmet.<br><br><span style="font-size:12px;">Medlemmer registrert før august 2026 har felles startpunkt der.</span>`;
   } else {
     descEl.innerHTML = `Sekundærtrekningen. <strong>Innen samme år kan ingen vinne B-trekningen mer enn én gang.</strong> Når et medlem har vunnet en B-trekning, er de utelukket fra videre B-trekninger samme år. Ved nyttår nullstilles listen.`;
   }
@@ -3338,21 +3338,51 @@ function startDraw() {
   const btnElCheck = document.getElementById('draw-btn');
   btnElCheck.textContent = 'Trekker …';
 
-  // For A: only eligible (non-excluded), active members
-  // For B: all active members
+  // For A: prioritize by years-left (1 year > 2 years > 3 years)
+  // For B: all active members not already won this year
   const active = state.members.filter(m => m.active !== false);
   let participants;
+  let prioritizationNote = '';
+
   if (currentDrawType === 'A') {
     const { eligible } = getEligibleParticipants('A');
-    participants = eligible.filter(m => m.active !== false);
+    const activeEligible = eligible.filter(m => m.active !== false);
+
+    // Group by years left
+    const today = new Date();
+    const byYearsLeft = { 1: [], 2: [], 3: [] };
+    activeEligible.forEach(m => {
+      const yl = getMemberYearsLeft(m, today);
+      if (yl !== null && byYearsLeft[yl]) byYearsLeft[yl].push(m);
+    });
+
+    // Prioritize: 1 year left first (must win this year),
+    // then 2 years left, then 3 years left
+    if (byYearsLeft[1].length > 0) {
+      participants = byYearsLeft[1];
+      prioritizationNote = `Trekker mellom ${participants.length} medlemmer på siste sjanse (1 år igjen)`;
+    } else if (byYearsLeft[2].length > 0) {
+      participants = byYearsLeft[2];
+      prioritizationNote = `Trekker mellom ${participants.length} medlemmer med 2 år igjen`;
+    } else if (byYearsLeft[3].length > 0) {
+      participants = byYearsLeft[3];
+      prioritizationNote = `Trekker mellom ${participants.length} medlemmer med 3 år igjen`;
+    } else {
+      participants = activeEligible; // fallback (shouldn't happen normally)
+    }
   } else {
-    participants = active;
+    const { eligible } = getEligibleParticipants('B');
+    participants = eligible.filter(m => m.active !== false);
   }
 
   if (participants.length === 0) {
     toast('Ingen kvalifiserte deltakere', true);
     btnElCheck.textContent = 'Start trekning';
     return;
+  }
+
+  if (prioritizationNote) {
+    toast(prioritizationNote);
   }
 
   const btn = document.getElementById('draw-btn');
@@ -3687,7 +3717,7 @@ function renderDrawPlan() {
     </div>
     <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:600;margin:6px 0;">${aArtworks.length} <span style="color:var(--muted);font-size:18px;">/ ${recommendedA}</span></div>
     <div style="font-size:12px;color:var(--muted);">
-      ${aGap <= 0 ? `✓ Du har nok A-verk klargjort` : `Trenger ${aGap} verk til for å dekke alle som bør vinne A i år`}
+      ${aGap <= 0 ? `✓ Du har nok A-verk klargjort i år` : `Trenger ${aGap} verk til så alle får vinne A i sin 3-årsperiode`}
     </div>
   </div>`;
 
