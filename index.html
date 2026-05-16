@@ -1046,7 +1046,7 @@
   <header>
     <div>
       <div class="logo">Mykje<em>Kunst</em></div>
-      <div class="subtitle">— der penger blir til malerier —</div>
+      <div class="subtitle">— for kunst i hverdagen —</div>
     </div>
     <div class="header-actions">
       <div class="sync-status" id="sync-status">
@@ -1319,6 +1319,10 @@
         <div>
           <label>Årgang (valgfritt)</label>
           <input type="text" id="new-artwork-year" placeholder="1892">
+        </div>
+        <div>
+          <label>Opplag (valgfritt)</label>
+          <input type="text" id="new-artwork-edition" placeholder="f.eks. 37/100, EA, HC">
         </div>
         <div>
           <label>Til trekning</label>
@@ -3900,6 +3904,7 @@ async function addArtwork() {
   const acquired = document.getElementById('new-artwork-acquired').value;
   const cost = parseFloat(document.getElementById('new-artwork-cost').value) || 0;
   const year = document.getElementById('new-artwork-year').value.trim();
+  const edition = document.getElementById('new-artwork-edition').value.trim();
   const bio = document.getElementById('new-artwork-bio').value.trim();
   const drawCategory = document.getElementById('new-artwork-drawcategory').value;
 
@@ -3932,8 +3937,9 @@ async function addArtwork() {
     acquired: acquired || new Date().toISOString().slice(0, 10),
     cost,
     year,
+    edition,
     bio,
-    drawCategory,  // 'A', 'B', or '' (unspecified)
+    drawCategory,
     imagePath,
     imageUrl,
     image: null,
@@ -3947,6 +3953,7 @@ async function addArtwork() {
 
   document.getElementById('new-artwork-title').value = '';
   document.getElementById('new-artwork-artist').value = '';
+  document.getElementById('new-artwork-edition').value = '';
   document.getElementById('new-artwork-height').value = '';
   document.getElementById('new-artwork-width').value = '';
   document.getElementById('new-artwork-acquired').value = '';
@@ -4049,10 +4056,13 @@ function openArtwork(id) {
   html += '<div class="artwork-info-grid">';
   html += `<div><div class="label">Type</div><div class="value">${escape(a.type)}</div></div>`;
   if (a.height && a.width) html += `<div><div class="label">Mål</div><div class="value">${a.height} × ${a.width} cm</div></div>`;
+  if (a.year) html += `<div><div class="label">Årgang</div><div class="value">${escape(a.year)}</div></div>`;
+  if (a.edition) html += `<div><div class="label">Opplag</div><div class="value">${escape(a.edition)}</div></div>`;
   if (a.acquired) html += `<div><div class="label">Anskaffet</div><div class="value">${fmtDate(a.acquired)}</div></div>`;
   if (a.cost) html += `<div><div class="label">Kostnad</div><div class="value">${fmt(a.cost)}</div></div>`;
   if (a.drawCategory === 'A') html += `<div><div class="label">Til trekning</div><div class="value" style="color:var(--accent);">A-trekning</div></div>`;
   else if (a.drawCategory === 'B') html += `<div><div class="label">Til trekning</div><div class="value">B-trekning</div></div>`;
+  else if (a.drawCategory === '') html += `<div><div class="label">Til trekning</div><div class="value">Lotteri</div></div>`;
   html += '</div>';
 
   if (a.bio) {
@@ -4126,6 +4136,7 @@ function openArtwork(id) {
       <div><label>Anskaffet</label><input type="date" id="edit-artwork-acquired" value="${a.acquired || ''}"></div>
       <div><label>Kostnad</label><input type="number" id="edit-artwork-cost" value="${a.cost || ''}"></div>
       <div><label>Årgang</label><input type="text" id="edit-artwork-year" value="${escape(a.year || '')}"></div>
+      <div><label>Opplag</label><input type="text" id="edit-artwork-edition" value="${escape(a.edition || '')}" placeholder="f.eks. 37/100, EA"></div>
       <div><label>Til trekning</label><select id="edit-artwork-drawcategory">
         <option value="A" ${a.drawCategory === 'A' ? 'selected' : ''}>A-trekning</option>
         <option value="B" ${a.drawCategory === 'B' ? 'selected' : ''}>B-trekning</option>
@@ -4186,6 +4197,7 @@ async function saveArtworkEdit() {
   a.acquired = document.getElementById('edit-artwork-acquired').value || a.acquired;
   a.cost = parseFloat(document.getElementById('edit-artwork-cost').value) || 0;
   a.year = document.getElementById('edit-artwork-year').value.trim();
+  a.edition = document.getElementById('edit-artwork-edition').value.trim();
   a.bio = document.getElementById('edit-artwork-bio').value.trim();
   a.drawCategory = document.getElementById('edit-artwork-drawcategory').value;
 
@@ -4392,7 +4404,7 @@ function renderCatalogSheet() {
       <div class="catalog-cover-meta">Trekning · ${year}</div>
       <div style="margin-top:6mm;font-size:9pt;color:#8a8275;font-style:italic;">${escape(dateStr)}</div>
     </div>
-    <div class="catalog-page-footer">${escape(clubName)} <em>·</em> kunstkatalog</div>
+    <div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div>
   </div>`;
 
   // ---- A-trekning page(s) ----
@@ -4402,7 +4414,7 @@ function renderCatalogSheet() {
     aArtworks.forEach(a => {
       html += renderCatalogEntry(a, true);
     });
-    html += `<div class="catalog-page-footer">${escape(clubName)} <em>·</em> A-trekning ${year}</div></div>`;
+    html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
   }
 
   // ---- B-trekning page(s) ----
@@ -4412,7 +4424,7 @@ function renderCatalogSheet() {
     bArtworks.forEach(a => {
       html += renderCatalogEntry(a, false);
     });
-    html += `<div class="catalog-page-footer">${escape(clubName)} <em>·</em> B-trekning ${year}</div></div>`;
+    html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
   }
 
   // ---- Unspecified ----
@@ -4422,7 +4434,7 @@ function renderCatalogSheet() {
     unspecified.forEach(a => {
       html += renderCatalogEntry(a, false);
     });
-    html += `<div class="catalog-page-footer">${escape(clubName)} <em>·</em> lotteri</div></div>`;
+    html += `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div></div>`;
   }
 
   sheet.innerHTML = html;
@@ -4440,7 +4452,7 @@ function renderCatalogEntry(a, isLarge) {
     ? state.members.find(m => m.id === a.claimedBy)?.name
     : null;
 
-  let meta = `<div><strong>${escape(a.type || '')}</strong>${dims ? ' · ' + dims : ''}</div>`;
+  let meta = `<div><strong>${escape(a.type || '')}</strong>${dims ? ' · ' + dims : ''}${a.edition ? ' · Opplag ' + escape(a.edition) : ''}</div>`;
   if (a.year) meta += `<div>${escape(a.year)}</div>`;
   if (a.acquired) meta += `<div>Anskaffet ${fmtDate(a.acquired)}</div>`;
   if (claimedNote) meta += `<div style="color:#b8410f;font-weight:600;">Valgt av ${escape(claimedNote)}</div>`;
@@ -4510,7 +4522,7 @@ function renderA6Label(a) {
   const dim = a.height && a.width ? `${a.height} × ${a.width} cm` : '';
   const yearOrAcq = a.year || (a.acquired ? new Date(a.acquired).getFullYear() : '');
   let metaLines = '';
-  if (a.type) metaLines += `<div class="a6-label-meta">${escape(a.type)}${dim ? ' · ' + dim : ''}</div>`;
+  if (a.type) metaLines += `<div class="a6-label-meta">${escape(a.type)}${dim ? ' · ' + dim : ''}${a.edition ? ' · ' + escape(a.edition) : ''}</div>`;
   if (yearOrAcq) metaLines += `<div class="a6-label-meta">${escape(String(yearOrAcq))}</div>`;
 
   return `<div class="a6-label">
@@ -4519,7 +4531,7 @@ function renderA6Label(a) {
       <div class="a6-label-artist">av ${escape(a.artist)}</div>
       ${metaLines}
       ${a.bio ? `<div class="a6-label-divider"></div><div class="a6-label-bio">${escape(a.bio)}</div>` : ''}
-      <div class="a6-label-footer">${escape(state.settings.name || 'MykjeKunst')} <em>·</em> kunstsamling</div>
+      <div class="a6-label-footer">${escape(state.settings.name || 'MykjeKunst')} <em>—</em> for kunst i hverdagen</div>
     </div>
   </div>`;
 }
