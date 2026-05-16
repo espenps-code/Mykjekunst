@@ -4387,7 +4387,7 @@ function renderCatalogSheet() {
   const today = new Date();
   const year = today.getFullYear();
   const dateStr = today.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
-  const clubName = state.settings.name || 'MykjeKunst';
+  const clubName = 'MykjeKunst';
 
   let html = '';
 
@@ -4402,7 +4402,6 @@ function renderCatalogSheet() {
         og <strong>${bArtworks.length}</strong> verk i B-trekningen${includeUnspecified && unspecified.length > 0 ? `, samt <strong>${unspecified.length}</strong> verk i lotteriet` : ''}.
       </div>
       <div class="catalog-cover-meta">Trekning · ${year}</div>
-      <div style="margin-top:6mm;font-size:9pt;color:#8a8275;font-style:italic;">${escape(dateStr)}</div>
     </div>
     <div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div>
   </div>`;
@@ -4531,7 +4530,7 @@ function renderA6Label(a) {
       <div class="a6-label-artist">av ${escape(a.artist)}</div>
       ${metaLines}
       ${a.bio ? `<div class="a6-label-divider"></div><div class="a6-label-bio">${escape(a.bio)}</div>` : ''}
-      <div class="a6-label-footer">${escape(state.settings.name || 'MykjeKunst')} <em>—</em> for kunst i hverdagen</div>
+      <div class="a6-label-footer">MykjeKunst <em>—</em> for kunst i hverdagen</div>
     </div>
   </div>`;
 }
