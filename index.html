@@ -788,9 +788,9 @@
   @media print {
     body { background: white !important; }
     body * { visibility: hidden; }
-    .label-sheet, .label-sheet * { visibility: visible; }
-    .label-sheet { position: absolute; left: 0; top: 0; width: 100%; }
-    .label-print-preview { border: none; padding: 0; box-shadow: none; }
+    .label-sheet, .label-sheet *, .catalog-sheet, .catalog-sheet * { visibility: visible; }
+    .label-sheet, .catalog-sheet { position: absolute; left: 0; top: 0; width: 100%; }
+    .label-print-preview, .catalog-print-preview { border: none; padding: 0; box-shadow: none; }
     .no-print { display: none !important; }
     .a4-page {
       page-break-after: always;
@@ -799,9 +799,180 @@
       margin: 0;
       box-shadow: none;
     }
+    .catalog-page {
+      page-break-after: always;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0;
+      box-shadow: none;
+      padding: 18mm 16mm;
+      background: white;
+    }
+    .catalog-page:last-child { page-break-after: auto; }
     .a6-label { border: none; }
     @page { size: A4; margin: 0; }
   }
+
+  /* Catalog styles (also used on-screen preview) */
+  .catalog-page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 18mm 16mm;
+    background: white;
+    color: #1a1814;
+    font-family: 'Manrope', sans-serif;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    margin: 0 auto 20px;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .catalog-cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    min-height: 261mm;
+  }
+  .catalog-cover-title {
+    font-family: 'Fraunces', serif;
+    font-size: 56pt;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 12mm;
+  }
+  .catalog-cover-title em {
+    font-style: italic;
+    color: #b8410f;
+    font-weight: 400;
+  }
+  .catalog-cover-subtitle {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 18pt;
+    color: #8a8275;
+    margin-bottom: 24mm;
+  }
+  .catalog-cover-meta {
+    font-size: 11pt;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+  }
+  .catalog-section-header {
+    font-family: 'Fraunces', serif;
+    font-size: 36pt;
+    font-weight: 600;
+    border-bottom: 1px solid #d4ccb8;
+    padding-bottom: 8mm;
+    margin-bottom: 10mm;
+    line-height: 1;
+  }
+  .catalog-section-header em {
+    font-style: italic;
+    color: #b8410f;
+    font-weight: 400;
+  }
+  .catalog-section-header .count {
+    font-family: 'Manrope', sans-serif;
+    font-size: 11pt;
+    font-weight: 500;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    float: right;
+    line-height: 56pt;
+  }
+  .catalog-entry {
+    display: grid;
+    grid-template-columns: 70mm 1fr;
+    gap: 8mm;
+    margin-bottom: 12mm;
+    page-break-inside: avoid;
+  }
+  .catalog-entry.large {
+    grid-template-columns: 90mm 1fr;
+    gap: 10mm;
+    margin-bottom: 14mm;
+  }
+  .catalog-entry-img {
+    width: 100%;
+    aspect-ratio: 1;
+    background-color: #ede7d8;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border: 0.5px solid #d4ccb8;
+  }
+  .catalog-entry.large .catalog-entry-img {
+    aspect-ratio: 4/5;
+  }
+  .catalog-entry-noimg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    color: #b89968;
+    font-size: 36pt;
+  }
+  .catalog-entry-body {
+    padding-top: 2mm;
+  }
+  .catalog-entry-title {
+    font-family: 'Fraunces', serif;
+    font-size: 20pt;
+    font-weight: 600;
+    line-height: 1.1;
+    margin-bottom: 2mm;
+  }
+  .catalog-entry.large .catalog-entry-title {
+    font-size: 26pt;
+    margin-bottom: 3mm;
+  }
+  .catalog-entry-artist {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    color: #b8410f;
+    font-size: 14pt;
+    margin-bottom: 4mm;
+  }
+  .catalog-entry.large .catalog-entry-artist {
+    font-size: 16pt;
+    margin-bottom: 5mm;
+  }
+  .catalog-entry-meta {
+    font-size: 9.5pt;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4mm;
+    line-height: 1.5;
+  }
+  .catalog-entry-meta strong { color: #1a1814; font-weight: 600; }
+  .catalog-entry-bio {
+    font-size: 10pt;
+    line-height: 1.55;
+    color: #1a1814;
+  }
+  .catalog-entry.large .catalog-entry-bio {
+    font-size: 10.5pt;
+  }
+  .catalog-page-footer {
+    position: absolute;
+    bottom: 10mm;
+    left: 16mm;
+    right: 16mm;
+    text-align: center;
+    font-size: 8pt;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    border-top: 0.5px solid #d4ccb8;
+    padding-top: 4mm;
+  }
+  .catalog-page-footer em { color: #b89968; font-style: italic; }
 
   @media (max-width: 640px) {
     .container { padding: 16px 12px; }
@@ -1153,7 +1324,7 @@
           <select id="new-artwork-drawcategory">
             <option value="A">A-trekning</option>
             <option value="B">B-trekning</option>
-            <option value="">Ikke spesifisert</option>
+            <option value="">Lotteri</option>
           </select>
         </div>
       </div>
@@ -1177,6 +1348,7 @@
             <option value="draw-B">Til B-trekning</option>
           </select>
           <button class="btn btn-secondary btn-small" onclick="openLabelPrintView()">Skriv ut lapper</button>
+          <button class="btn btn-secondary btn-small" onclick="openCatalogPrintView()">Skriv ut katalog</button>
         </div>
       </div>
       <div class="search-bar">
@@ -1202,6 +1374,29 @@
       <div id="label-selection"></div>
     </div>
     <div class="label-sheet" id="label-sheet"></div>
+  </div>
+
+  <!-- CATALOG -->
+  <div class="view" id="view-catalog">
+    <div class="section no-print">
+      <div class="section-header">
+        <div class="section-title">Skriv ut <em>katalog</em></div>
+        <button class="btn btn-secondary btn-small" onclick="closeCatalogPrintView()">Tilbake til arkiv</button>
+      </div>
+      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Katalog for kunstverkene i årets trekning. A-bilder vises først og større, deretter B-bilder. Bruk nettleserens "Skriv ut" (Ctrl+P / Cmd+P) — sørg for at marger settes til "Ingen / Standard" og at bakgrunnsgrafikk er aktivert.</p>
+      <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer;">
+          <input type="checkbox" id="catalog-include-claimed" checked onchange="renderCatalogSheet()" style="width:auto;">
+          Inkluder allerede valgte verk
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer;">
+          <input type="checkbox" id="catalog-include-unspecified" checked onchange="renderCatalogSheet()" style="width:auto;">
+          Inkluder lotteri-verk
+        </label>
+        <button class="btn btn-small" onclick="window.print()" style="margin-left:auto;">🖨 Skriv ut</button>
+      </div>
+    </div>
+    <div class="catalog-sheet" id="catalog-sheet"></div>
   </div>
 
   <!-- REPORTS -->
@@ -1237,42 +1432,51 @@
       <div class="section-header">
         <div class="section-title">Trekning ved <em>skoleslutt</em></div>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-secondary btn-small draw-type-btn active" id="draw-tab-A" onclick="switchDrawType('A')">A-trekning</button>
+          <button class="btn btn-secondary btn-small draw-type-btn active" id="draw-tab-plan" onclick="switchDrawType('plan')">Årets trekning</button>
+          <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-A" onclick="switchDrawType('A')">A-trekning</button>
           <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-B" onclick="switchDrawType('B')">B-trekning</button>
         </div>
       </div>
 
-      <p style="color:var(--muted);margin-bottom:20px;font-size:14px;" id="draw-description"></p>
-
-      <div class="draw-stage">
-        <div class="draw-label" id="draw-stage-label">Vinneren er</div>
-        <div class="draw-name" id="draw-name">—</div>
-        <div class="draw-type-badge" id="draw-type-badge">A-trekning</div>
+      <!-- Planning view (kasserer's overview) -->
+      <div id="draw-plan-view">
+        <p style="color:var(--muted);margin-bottom:24px;font-size:14px;">Oversikt for kassereren. Sjekk inntekter, klargjøring av kunst og budsjett før trekningskvelden — hold dette skjult under selve seremonien.</p>
+        <div id="draw-plan-content"></div>
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-        <button class="btn" onclick="startDraw()" id="draw-btn">Start trekning</button>
-        <button class="btn btn-secondary" onclick="resetDraw()">Tilbakestill</button>
-      </div>
+      <!-- Actual draw view (A or B) -->
+      <div id="draw-active-view" style="display:none;">
+        <p style="color:var(--muted);margin-bottom:20px;font-size:14px;" id="draw-description"></p>
 
-      <!-- Artwork picker (shown after a winner is drawn) -->
-      <div id="draw-artwork-picker" style="display:none;margin-top:32px;">
-        <div style="padding:16px 20px;background:var(--paper-deep);border-left:3px solid var(--gold);margin-bottom:16px;">
-          <div style="font-family:'Fraunces',serif;font-size:18px;"><em style="color:var(--accent);" id="draw-picker-winner">Vinneren</em> velger kunstverk</div>
-          <div style="font-size:13px;color:var(--muted);margin-top:4px;">Klikk bildet vinneren peker på, så knyttes det automatisk i arkivet.</div>
+        <div class="draw-stage">
+          <div class="draw-label" id="draw-stage-label">Vinneren er</div>
+          <div class="draw-name" id="draw-name">—</div>
+          <div class="draw-type-badge" id="draw-type-badge">A-trekning</div>
         </div>
-        <div id="draw-artwork-grid"></div>
-      </div>
 
-      <div style="margin-top:32px;">
-        <label style="margin-bottom:12px;" id="draw-participants-label">Deltakere</label>
-        <div id="draw-eligibility-info"></div>
-        <div id="draw-participants"></div>
-      </div>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          <button class="btn" onclick="startDraw()" id="draw-btn">Start trekning</button>
+        </div>
 
-      <div style="margin-top:24px;">
-        <label>Trekningshistorikk</label>
-        <div id="draw-history"></div>
+        <!-- Artwork picker (shown after a winner is drawn) -->
+        <div id="draw-artwork-picker" style="display:none;margin-top:32px;">
+          <div style="padding:16px 20px;background:var(--paper-deep);border-left:3px solid var(--gold);margin-bottom:16px;">
+            <div style="font-family:'Fraunces',serif;font-size:18px;"><em style="color:var(--accent);" id="draw-picker-winner">Vinneren</em> velger kunstverk</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:4px;">Klikk bildet vinneren peker på, så knyttes det automatisk i arkivet.</div>
+          </div>
+          <div id="draw-artwork-grid"></div>
+        </div>
+
+        <div style="margin-top:32px;">
+          <label style="margin-bottom:12px;" id="draw-participants-label">Deltakere</label>
+          <div id="draw-eligibility-info"></div>
+          <div id="draw-participants"></div>
+        </div>
+
+        <div style="margin-top:24px;">
+          <label>Trekningshistorikk</label>
+          <div id="draw-history"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -2841,9 +3045,31 @@ let drawTimer = null;
 let currentDrawType = 'A';
 
 function switchDrawType(type) {
+  // Toggle planning view vs. active draw view
+  const planView = document.getElementById('draw-plan-view');
+  const activeView = document.getElementById('draw-active-view');
+  const tabPlan = document.getElementById('draw-tab-plan');
+  const tabA = document.getElementById('draw-tab-A');
+  const tabB = document.getElementById('draw-tab-B');
+
+  if (type === 'plan') {
+    if (planView) planView.style.display = 'block';
+    if (activeView) activeView.style.display = 'none';
+    tabPlan?.classList.add('active');
+    tabA?.classList.remove('active');
+    tabB?.classList.remove('active');
+    renderDrawPlan();
+    return;
+  }
+
+  // Switching to A or B — show the active draw stage
+  if (planView) planView.style.display = 'none';
+  if (activeView) activeView.style.display = 'block';
+  tabPlan?.classList.remove('active');
+
   currentDrawType = type;
-  document.getElementById('draw-tab-A').classList.toggle('active', type === 'A');
-  document.getElementById('draw-tab-B').classList.toggle('active', type === 'B');
+  tabA?.classList.toggle('active', type === 'A');
+  tabB?.classList.toggle('active', type === 'B');
   document.getElementById('draw-type-badge').textContent = type + '-trekning';
   resetDraw();
   renderDrawParticipants();
@@ -2912,10 +3138,25 @@ function getMemberYearsLeft(member, date) {
 
 function getEligibleParticipants(type) {
   const active = state.members.filter(m => m.active !== false);
-  if (type === 'B') return { eligible: active, excluded: {} };
+  const today = new Date();
+
+  if (type === 'B') {
+    // For B-draw: exclude members who have already won a B-draw in the current calendar year.
+    // Resets every January 1.
+    const currentYear = today.getFullYear();
+    const winners = {};
+    state.draws.forEach(d => {
+      if (d.type !== 'B') return;
+      const drawYear = new Date(d.date).getFullYear();
+      if (drawYear === currentYear) {
+        winners[d.winnerId] = { date: d.date, drawId: d.id };
+      }
+    });
+    const eligible = active.filter(m => !winners[m.id]);
+    return { eligible, excluded: winners };
+  }
 
   // For A-draw: check each member's personal period
-  const today = new Date();
   const winners = {};
 
   active.forEach(m => {
@@ -2945,7 +3186,7 @@ function renderDrawParticipants() {
   if (currentDrawType === 'A') {
     descEl.innerHTML = `Hovedtrekningen. <strong>Hvert medlem har sin egen 3-årsperiode</strong> som starter når de melder seg inn. I løpet av denne perioden skal medlemmet vinne A-trekningen én gang. Når perioden er over, nullstilles medlemmet og starter sin neste 3-årsperiode.<br><br><span style="font-size:12px;">Medlemmer registrert før august 2026 har felles startpunkt der.</span>`;
   } else {
-    descEl.innerHTML = 'Sekundærtrekningen. Alle aktive medlemmer kan vinne B-trekningen hvert år, uavhengig av tidligere seire.';
+    descEl.innerHTML = `Sekundærtrekningen. <strong>Innen samme år kan ingen vinne B-trekningen mer enn én gang.</strong> Når et medlem har vunnet en B-trekning, er de utelukket fra videre B-trekninger samme år. Ved nyttår nullstilles listen.`;
   }
 
   if (state.members.length === 0) {
@@ -3010,13 +3251,24 @@ function renderDrawParticipants() {
       </div>`;
     }
   } else {
-    infoHtml = `<div class="eligibility-card">
-      <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);font-style:italic;">${eligible.length}</div>
-      <div>
-        <div><strong>medlemmer med</strong></div>
-        <div style="margin-top:2px;">Alle aktive medlemmer kan vinne B-trekningen.</div>
-      </div>
-    </div>`;
+    // B-trekning info card
+    if (excludedCount > 0) {
+      infoHtml = `<div class="eligibility-card">
+        <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--accent);font-style:italic;">${excludedCount}</div>
+        <div>
+          <div><strong>medlemmer har allerede vunnet B i år</strong></div>
+          <div style="margin-top:2px;">${eligible.length} medlemmer gjenstår som kvalifiserte. Ved nyttår nullstilles listen.</div>
+        </div>
+      </div>`;
+    } else {
+      infoHtml = `<div class="eligibility-card">
+        <div style="font-family:'Fraunces',serif;font-size:24px;color:var(--green);font-style:italic;">${eligible.length}</div>
+        <div>
+          <div><strong>medlemmer kvalifisert i år</strong></div>
+          <div style="margin-top:2px;">Blanke ark — ingen har vunnet B-trekning ennå i år.</div>
+        </div>
+      </div>`;
+    }
   }
   infoEl.innerHTML = infoHtml;
 
@@ -3033,10 +3285,14 @@ function renderDrawParticipants() {
     let exclusionNote = '';
     if (isExcluded) {
       const winYear = new Date(exclusion.date).getFullYear();
-      const periodLabel = getMemberPeriodLabel(m, exclusion.period);
-      exclusionNote = `<div class="exclusion-note">Vant A i ${winYear} · periode ${periodLabel}</div>`;
-    } else if (isActive) {
-      // Show which period this member is currently in (helpful context)
+      if (currentDrawType === 'A') {
+        const periodLabel = getMemberPeriodLabel(m, exclusion.period);
+        exclusionNote = `<div class="exclusion-note">Vant A i ${winYear} · periode ${periodLabel}</div>`;
+      } else {
+        exclusionNote = `<div class="exclusion-note">Vant B i ${winYear}</div>`;
+      }
+    } else if (isActive && currentDrawType === 'A') {
+      // Show which period this member is currently in (helpful context for A)
       const today = new Date();
       const currentPeriod = getMemberPeriodIndex(m, today);
       if (currentPeriod >= 0) {
@@ -3060,6 +3316,12 @@ function toggleDrawActive(id, checked) {
 }
 
 function startDraw() {
+  // Auto-reset scene if a previous draw was completed
+  const picker = document.getElementById('draw-artwork-picker');
+  if (picker) picker.style.display = 'none';
+  const btnElCheck = document.getElementById('draw-btn');
+  btnElCheck.textContent = 'Trekker …';
+
   // For A: only eligible (non-excluded), active members
   // For B: all active members
   const active = state.members.filter(m => m.active !== false);
@@ -3073,6 +3335,7 @@ function startDraw() {
 
   if (participants.length === 0) {
     toast('Ingen kvalifiserte deltakere', true);
+    btnElCheck.textContent = 'Start trekning';
     return;
   }
 
@@ -3122,6 +3385,7 @@ function startDraw() {
       state.draws.push(drawRecord);
       save();
       btn.disabled = false;
+      btn.textContent = 'Start ny trekning';
       renderDrawHistory();
       renderDrawParticipants();
       toast('🎉 ' + winner.name + ' vant ' + currentDrawType + '-trekningen!');
@@ -3192,7 +3456,9 @@ function resetDraw() {
   nameEl.textContent = '—';
   nameEl.classList.remove('spinning', 'winner-reveal');
   stageEl.classList.remove('spinning', 'winner');
-  document.getElementById('draw-btn').disabled = false;
+  const btn = document.getElementById('draw-btn');
+  btn.disabled = false;
+  btn.textContent = 'Start trekning';
   // Hide the artwork picker
   const picker = document.getElementById('draw-artwork-picker');
   if (picker) picker.style.display = 'none';
@@ -3267,6 +3533,210 @@ function pickArtworkForDraw(drawId, artworkId) {
   toast(`🎨 "${artwork.title}" tilknyttet`);
   renderDrawHistory();
   renderArtworks();
+}
+
+function renderDrawPlan() {
+  const wrap = document.getElementById('draw-plan-content');
+  if (!wrap) return;
+
+  // Determine the current school year (Aug X → Jul X+1)
+  const today = new Date();
+  const startMonth = state.settings.startMonth || 8; // August
+  const startYear = (today.getMonth() + 1) >= startMonth ? today.getFullYear() : today.getFullYear() - 1;
+  const periodStart = new Date(startYear, startMonth - 1, 1);
+  const periodEnd = new Date(startYear + 1, startMonth - 1, 0); // last day before next start
+  const yearLabel = `${startYear}/${String(startYear + 1).slice(-2)}`;
+
+  // Active members
+  const activeMembers = state.members.filter(m => m.active !== false);
+  const memberCount = activeMembers.length;
+
+  // ===== Estimated income for the school year =====
+  const monthly = state.settings.monthly || 0;
+  // Estimated monthly contributions: 12 months × monthly × members
+  const estMonthly = monthly * 12 * memberCount;
+
+  // Actual income in this period
+  const inPeriod = (d) => {
+    const dt = new Date(d);
+    return dt >= periodStart && dt <= periodEnd;
+  };
+  const actualPayments = state.payments.filter(p => inPeriod(p.date));
+  const actualMonthly = actualPayments.filter(p => p.type === 'monthly').reduce((s, p) => s + p.amount, 0);
+  const actualDeposits = actualPayments.filter(p => p.type === 'deposit').reduce((s, p) => s + p.amount, 0);
+  const actualOther = (state.otherIncome || []).filter(i => inPeriod(i.date)).reduce((s, i) => s + i.amount, 0);
+  const actualIncomeTotal = actualPayments.reduce((s, p) => s + p.amount, 0) + actualOther;
+
+  // Estimated total income = est monthly + actual deposits + actual other (since these are one-offs)
+  const estTotalIncome = estMonthly + actualDeposits + actualOther;
+
+  // ===== Spending on art and related categories =====
+  // Look at expenses in current school year
+  const artCategories = ['Kunstkjøp', 'Innramming', 'Trekning / premie'];
+  const yearExpenses = state.expenses.filter(e => inPeriod(e.date));
+  const spentByCategory = {};
+  yearExpenses.forEach(e => {
+    spentByCategory[e.category] = (spentByCategory[e.category] || 0) + e.amount;
+  });
+  const artSpent = artCategories.reduce((s, c) => s + (spentByCategory[c] || 0), 0);
+  const otherSpent = yearExpenses
+    .filter(e => !artCategories.includes(e.category))
+    .reduce((s, e) => s + e.amount, 0);
+
+  // Money still available to spend = estimated income - everything spent so far
+  const totalSpent = artSpent + otherSpent;
+  const remaining = estTotalIncome - totalSpent;
+
+  // ===== Artwork readiness =====
+  // Count artworks acquired in this school year by category
+  const yearArtworks = (state.artworks || []).filter(a => {
+    if (!a.acquired) return false;
+    return inPeriod(a.acquired);
+  });
+
+  const aArtworks = yearArtworks.filter(a => a.drawCategory === 'A');
+  const bArtworks = yearArtworks.filter(a => a.drawCategory === 'B');
+  const unspecArtworks = yearArtworks.filter(a => !a.drawCategory);
+
+  // Heuristic: how many A-draws should we have this year?
+  // For A-trekning: ideally every member should win once in 3 years,
+  // so per year we need ~memberCount/3 A-artworks
+  const recommendedA = Math.ceil(memberCount / 3);
+  // For B-trekning: rough heuristic — 1 per ~3 members (adjustable)
+  const recommendedB = Math.max(3, Math.ceil(memberCount / 3));
+
+  const aGap = recommendedA - aArtworks.length;
+  const bGap = recommendedB - bArtworks.length;
+
+  // ===== Build HTML =====
+  let html = '';
+
+  // Year header
+  html += `<div style="padding:16px 20px;background:var(--paper-deep);border-left:3px solid var(--accent);margin-bottom:24px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:var(--muted);font-weight:600;">Skoleåret</div>
+    <div style="font-family:'Fraunces',serif;font-size:32px;font-weight:600;line-height:1.1;margin-top:2px;">${yearLabel}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">${fmtDate(periodStart.toISOString().slice(0,10))} – ${fmtDate(periodEnd.toISOString().slice(0,10))} · ${memberCount} aktive medlemmer</div>
+  </div>`;
+
+  // Financial overview
+  html += `<label>Økonomi for skoleåret</label>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:8px 0 24px;">
+    <div style="padding:14px 16px;background:var(--paper-deep);border-left:3px solid var(--green);">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;">Estimert inntekt</div>
+      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin-top:2px;color:var(--green);">${fmt(estTotalIncome)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${memberCount} med × ${fmt(monthly)} × 12 mnd${actualDeposits > 0 ? ' + ' + fmt(actualDeposits) + ' innskudd' : ''}${actualOther > 0 ? ' + ' + fmt(actualOther) + ' annet' : ''}</div>
+    </div>
+    <div style="padding:14px 16px;background:var(--paper-deep);border-left:3px solid var(--gold);">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;">Brukt på kunst</div>
+      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin-top:2px;">${fmt(artSpent)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;">
+        ${(spentByCategory['Kunstkjøp'] || 0) > 0 ? `Kunstkjøp: ${fmt(spentByCategory['Kunstkjøp'])}<br>` : ''}
+        ${(spentByCategory['Innramming'] || 0) > 0 ? `Innramming: ${fmt(spentByCategory['Innramming'])}<br>` : ''}
+        ${(spentByCategory['Trekning / premie'] || 0) > 0 ? `Premier: ${fmt(spentByCategory['Trekning / premie'])}` : ''}
+        ${artSpent === 0 ? 'ingen kjøp ennå i år' : ''}
+      </div>
+    </div>
+    <div style="padding:14px 16px;background:var(--paper-deep);border-left:3px solid var(--muted);">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;">Andre utgifter</div>
+      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin-top:2px;">${fmt(otherSpent)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">administrasjon, møter o.l.</div>
+    </div>
+    <div style="padding:14px 16px;background:var(--paper-deep);border-left:3px solid ${remaining < 0 ? 'var(--accent)' : 'var(--green)'};">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;">Igjen å handle for</div>
+      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin-top:2px;color:${remaining < 0 ? 'var(--accent)' : 'var(--ink)'};">${fmt(remaining)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${remaining < 0 ? '⚠️ overskridelse' : 'budsjettrest'}</div>
+    </div>
+  </div>`;
+
+  // Faktiske vs estimerte månedlige bidrag — liten progress-info
+  if (estMonthly > 0) {
+    const pct = Math.round(actualMonthly / estMonthly * 100);
+    html += `<div style="font-size:12px;color:var(--muted);margin:-12px 0 24px;font-style:italic;">
+      Mottatt månedlige bidrag hittil: ${fmt(actualMonthly)} av estimert ${fmt(estMonthly)} (${pct}%)
+    </div>`;
+  }
+
+  // ===== Artwork readiness =====
+  html += `<label>Klargjøring av kunstverk</label>
+  <p style="color:var(--muted);font-size:12px;margin-top:0;margin-bottom:12px;">Kunstverk anskaffet i dette skoleåret (${fmtDate(periodStart.toISOString().slice(0,10))} →).</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:24px;">`;
+
+  // A-trekning card
+  const aStatus = aGap <= 0 ? 'klar' : 'mangler';
+  const aColor = aGap <= 0 ? 'var(--green)' : 'var(--accent)';
+  html += `<div style="padding:16px 18px;background:var(--paper-deep);border-left:3px solid ${aColor};">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;">
+      <div style="font-family:'Fraunces',serif;font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:var(--muted);font-weight:600;">A-trekning</div>
+      <div style="font-size:10px;color:${aColor};text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">${aStatus}</div>
+    </div>
+    <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:600;margin:6px 0;">${aArtworks.length} <span style="color:var(--muted);font-size:18px;">/ ${recommendedA}</span></div>
+    <div style="font-size:12px;color:var(--muted);">
+      ${aGap <= 0 ? `✓ Du har nok A-verk klargjort` : `Trenger ${aGap} verk til for å dekke alle som bør vinne A i år`}
+    </div>
+  </div>`;
+
+  // B-trekning card
+  const bStatus = bGap <= 0 ? 'klar' : 'mangler';
+  const bColor = bGap <= 0 ? 'var(--green)' : 'var(--accent)';
+  html += `<div style="padding:16px 18px;background:var(--paper-deep);border-left:3px solid ${bColor};">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;">
+      <div style="font-family:'Fraunces',serif;font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:var(--muted);font-weight:600;">B-trekning</div>
+      <div style="font-size:10px;color:${bColor};text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">${bStatus}</div>
+    </div>
+    <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:600;margin:6px 0;">${bArtworks.length} <span style="color:var(--muted);font-size:18px;">/ ${recommendedB}</span></div>
+    <div style="font-size:12px;color:var(--muted);">
+      ${bGap <= 0 ? `✓ Du har nok B-verk klargjort` : `Trenger ${bGap} verk til for et godt utvalg`}
+    </div>
+  </div>`;
+
+  // Uspecified card (if any)
+  if (unspecArtworks.length > 0) {
+    html += `<div style="padding:16px 18px;background:var(--paper-deep);border-left:3px solid var(--muted);">
+      <div style="font-family:'Fraunces',serif;font-size:11px;text-transform:uppercase;letter-spacing:0.15em;color:var(--muted);font-weight:600;">Lotteri</div>
+      <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:600;margin:6px 0;">${unspecArtworks.length}</div>
+      <div style="font-size:12px;color:var(--muted);">Verk merket som lotteri — kan brukes i begge trekninger</div>
+    </div>`;
+  }
+  html += '</div>';
+
+  // ===== A-draw participants overview =====
+  // How many members "should" win A this year? = those with 1 year left
+  const yearGroups = { 3: [], 2: [], 1: [] };
+  const { eligible } = getEligibleParticipants('A');
+  eligible.forEach(m => {
+    const yearsLeft = getMemberYearsLeft(m, today);
+    if (yearsLeft !== null && yearGroups[yearsLeft]) yearGroups[yearsLeft].push(m);
+  });
+
+  if (yearGroups[1].length > 0) {
+    html += `<div style="padding:14px 18px;background:#fef5ef;border-left:3px solid var(--accent);margin-bottom:24px;">
+      <div style="font-family:'Fraunces',serif;font-size:14px;font-weight:600;color:var(--accent);">⚠️ ${yearGroups[1].length} medlemmer på sin siste A-sjanse i år</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;font-style:italic;">${yearGroups[1].map(m => escape(m.name)).join(', ')}</div>
+      <div style="font-size:12px;margin-top:8px;">Disse bør prioriteres i A-trekningen — vinner de ikke i år, nullstilles deres periode uten seier.</div>
+    </div>`;
+  }
+
+  // ===== Recent draws this year =====
+  const yearDraws = state.draws.filter(d => inPeriod(d.date));
+  if (yearDraws.length > 0) {
+    html += `<label>Trekninger gjennomført i ${yearLabel}</label>
+    <div style="margin-top:8px;">`;
+    yearDraws.forEach(d => {
+      const winner = state.members.find(m => m.id === d.winnerId);
+      const artwork = state.artworks.find(a => a.drawId === d.id);
+      html += `<div style="padding:10px 14px;background:var(--paper-deep);margin-bottom:6px;display:flex;align-items:center;gap:12px;">
+        <span class="badge" style="background:${d.type === 'A' ? 'var(--gold)' : 'var(--ink)'};color:${d.type === 'A' ? 'var(--ink)' : 'var(--paper)'};">${d.type}</span>
+        <span style="font-family:'Fraunces',serif;font-size:15px;font-weight:600;">${winner ? escape(winner.name) : 'Ukjent'}</span>
+        ${artwork ? `<span style="color:var(--muted);font-style:italic;font-size:13px;">— ${escape(artwork.title)}</span>` : '<span style="color:var(--muted);font-size:12px;">(uten kunstvalg)</span>'}
+        <span style="margin-left:auto;font-size:12px;color:var(--muted);">${fmtDate(d.date)}</span>
+      </div>`;
+    });
+    html += '</div>';
+  } else {
+    html += `<div style="padding:16px;background:var(--paper-deep);font-size:13px;color:var(--muted);text-align:center;font-style:italic;">Ingen trekninger gjennomført ennå i ${yearLabel}.</div>`;
+  }
+
+  wrap.innerHTML = html;
 }
 
 function renderDrawHistory() {
@@ -3658,7 +4128,7 @@ function openArtwork(id) {
       <div><label>Til trekning</label><select id="edit-artwork-drawcategory">
         <option value="A" ${a.drawCategory === 'A' ? 'selected' : ''}>A-trekning</option>
         <option value="B" ${a.drawCategory === 'B' ? 'selected' : ''}>B-trekning</option>
-        <option value="" ${!a.drawCategory ? 'selected' : ''}>Ikke spesifisert</option>
+        <option value="" ${!a.drawCategory ? 'selected' : ''}>Lotteri</option>
       </select></div>
     </div>
     <label>Fakta om kunstneren</label>
@@ -3855,6 +4325,134 @@ function closeLabelPrintView() {
   document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
   document.querySelector('nav button[data-view="artworks"]').classList.add('active');
   document.getElementById('view-artworks').classList.add('active');
+}
+
+function openCatalogPrintView() {
+  if (!state.artworks || state.artworks.length === 0) {
+    toast('Ingen kunstverk å skrive ut', true);
+    return;
+  }
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.getElementById('view-catalog').classList.add('active');
+  renderCatalogSheet();
+}
+
+function closeCatalogPrintView() {
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.querySelector('nav button[data-view="artworks"]').classList.add('active');
+  document.getElementById('view-artworks').classList.add('active');
+}
+
+function renderCatalogSheet() {
+  const sheet = document.getElementById('catalog-sheet');
+  if (!sheet) return;
+
+  const includeClaimed = document.getElementById('catalog-include-claimed')?.checked ?? true;
+  const includeUnspecified = document.getElementById('catalog-include-unspecified')?.checked ?? true;
+
+  // Filter artworks
+  let candidates = state.artworks.filter(a => a.status !== 'sold');
+  if (!includeClaimed) candidates = candidates.filter(a => a.status !== 'claimed');
+
+  const aArtworks = candidates.filter(a => a.drawCategory === 'A');
+  const bArtworks = candidates.filter(a => a.drawCategory === 'B');
+  const unspecified = candidates.filter(a => !a.drawCategory);
+
+  // Sort each group by artist then title for catalog order
+  const sortFn = (x, y) => (x.artist || '').localeCompare(y.artist || '') || (x.title || '').localeCompare(y.title || '');
+  aArtworks.sort(sortFn);
+  bArtworks.sort(sortFn);
+  unspecified.sort(sortFn);
+
+  const allCount = aArtworks.length + bArtworks.length + (includeUnspecified ? unspecified.length : 0);
+  if (allCount === 0) {
+    sheet.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);">Ingen kunstverk å vise med valgte filtre.</div>';
+    return;
+  }
+
+  const today = new Date();
+  const year = today.getFullYear();
+  const dateStr = today.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
+  const clubName = state.settings.name || 'MykjeKunst';
+
+  let html = '';
+
+  // ---- Cover page ----
+  html += `<div class="catalog-page">
+    <div class="catalog-cover">
+      <div class="catalog-cover-title">Kunst<em>katalog</em></div>
+      <div class="catalog-cover-subtitle">${escape(clubName)}</div>
+      <div style="width:60mm;height:1px;background:#d4ccb8;margin:8mm 0 12mm;"></div>
+      <div style="font-family:'Fraunces',serif;font-size:13pt;color:#1a1814;margin-bottom:18mm;line-height:1.6;max-width:120mm;text-align:center;">
+        Årets trekning omfatter <strong>${aArtworks.length}</strong> verk i A-trekningen
+        og <strong>${bArtworks.length}</strong> verk i B-trekningen${includeUnspecified && unspecified.length > 0 ? `, samt <strong>${unspecified.length}</strong> verk i lotteriet` : ''}.
+      </div>
+      <div class="catalog-cover-meta">Trekning · ${year}</div>
+      <div style="margin-top:6mm;font-size:9pt;color:#8a8275;font-style:italic;">${escape(dateStr)}</div>
+    </div>
+    <div class="catalog-page-footer">${escape(clubName)} <em>·</em> kunstkatalog</div>
+  </div>`;
+
+  // ---- A-trekning page(s) ----
+  if (aArtworks.length > 0) {
+    html += `<div class="catalog-page">
+      <div class="catalog-section-header">A-<em>trekning</em><span class="count">${aArtworks.length} verk</span></div>`;
+    aArtworks.forEach(a => {
+      html += renderCatalogEntry(a, true);
+    });
+    html += `<div class="catalog-page-footer">${escape(clubName)} <em>·</em> A-trekning ${year}</div></div>`;
+  }
+
+  // ---- B-trekning page(s) ----
+  if (bArtworks.length > 0) {
+    html += `<div class="catalog-page">
+      <div class="catalog-section-header">B-<em>trekning</em><span class="count">${bArtworks.length} verk</span></div>`;
+    bArtworks.forEach(a => {
+      html += renderCatalogEntry(a, false);
+    });
+    html += `<div class="catalog-page-footer">${escape(clubName)} <em>·</em> B-trekning ${year}</div></div>`;
+  }
+
+  // ---- Unspecified ----
+  if (includeUnspecified && unspecified.length > 0) {
+    html += `<div class="catalog-page">
+      <div class="catalog-section-header">Lotteri<span class="count">${unspecified.length} verk</span></div>`;
+    unspecified.forEach(a => {
+      html += renderCatalogEntry(a, false);
+    });
+    html += `<div class="catalog-page-footer">${escape(clubName)} <em>·</em> lotteri</div></div>`;
+  }
+
+  sheet.innerHTML = html;
+}
+
+function renderCatalogEntry(a, isLarge) {
+  const src = artworkImageSrc(a);
+  const imgStyle = src ? `style="background-image:url('${src}');"` : '';
+  const imgClass = src ? '' : 'catalog-entry-noimg';
+  const imgContent = src ? '' : '✦';
+  const cls = isLarge ? 'catalog-entry large' : 'catalog-entry';
+
+  const dims = a.height && a.width ? `${a.height} × ${a.width} cm` : '';
+  const claimedNote = a.status === 'claimed' && a.claimedBy
+    ? state.members.find(m => m.id === a.claimedBy)?.name
+    : null;
+
+  let meta = `<div><strong>${escape(a.type || '')}</strong>${dims ? ' · ' + dims : ''}</div>`;
+  if (a.year) meta += `<div>${escape(a.year)}</div>`;
+  if (a.acquired) meta += `<div>Anskaffet ${fmtDate(a.acquired)}</div>`;
+  if (claimedNote) meta += `<div style="color:#b8410f;font-weight:600;">Valgt av ${escape(claimedNote)}</div>`;
+
+  return `<div class="${cls}">
+    <div class="catalog-entry-img ${imgClass}" ${imgStyle}>${imgContent}</div>
+    <div class="catalog-entry-body">
+      <div class="catalog-entry-title">${escape(a.title || 'Uten tittel')}</div>
+      <div class="catalog-entry-artist">av ${escape(a.artist || 'Ukjent')}</div>
+      <div class="catalog-entry-meta">${meta}</div>
+      ${a.bio ? `<div class="catalog-entry-bio">${escape(a.bio).replace(/\n/g, '<br>')}</div>` : ''}
+    </div>
+  </div>`;
 }
 
 function selectAllForPrint(select) {
@@ -4115,6 +4713,7 @@ function renderAll() {
   renderReports();
   renderDrawParticipants();
   renderDrawHistory();
+  renderDrawPlan();
 }
 
 // ============ DRAG-DROP ============
@@ -4235,6 +4834,9 @@ window.markArtworkSold = markArtworkSold;
 window.markArtworkAvailable = markArtworkAvailable;
 window.openLabelPrintView = openLabelPrintView;
 window.closeLabelPrintView = closeLabelPrintView;
+window.openCatalogPrintView = openCatalogPrintView;
+window.closeCatalogPrintView = closeCatalogPrintView;
+window.renderCatalogSheet = renderCatalogSheet;
 window.selectAllForPrint = selectAllForPrint;
 window.toggleLabelSelection = toggleLabelSelection;
 window.quickClaimForDraw = quickClaimForDraw;
