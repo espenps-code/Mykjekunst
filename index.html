@@ -1094,6 +1094,12 @@
   .rpt-month-wrap table.rpt-table { flex: 1; height: 100%; }
   .rpt-month-wrap table.rpt-table td { padding-top: 0; padding-bottom: 0; }
 
+  /* Sammendrag: kompakt variant (presser på én side) og fyllende variant (strekker over siden) */
+  table.rpt-table.rpt-compact td { padding-top: 1.5mm; padding-bottom: 1.5mm; }
+  .rpt-fill { flex: 1; display: flex; flex-direction: column; }
+  .rpt-fill table.rpt-table { flex: 1; height: 100%; }
+  .rpt-fill table.rpt-table td { padding-top: 0; padding-bottom: 0; }
+
   .rpt-signatures {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -3322,50 +3328,96 @@ function renderReportSheet() {
     ${footer}
   </div>`;
 
-  // ---- Side 2: Sammendrag ----
-  let catRows = '';
+  // ---- Side 2 (+ evt. flere): Sammendrag ----
   const incEntries = Object.entries(incByCat).sort((a, b) => b[1] - a[1]);
   const expEntries = Object.entries(expByCat).sort((a, b) => b[1] - a[1]);
+  const incRowCount = (depositIn > 0 ? 1 : 0) + (monthlyIn > 0 ? 1 : 0) + incEntries.length + 1;
+  const expRowCount = expEntries.length + 1;
 
-  let incTable = '';
-  if (incEntries.length || memberIn > 0) {
-    incTable = `<div><div class="rpt-block-label">Inntekter</div>
-      <table class="rpt-table"><tbody>
-        ${depositIn > 0 ? `<tr><td>Innskudd fra medlemmer</td><td class="num">${fmt(depositIn)}</td></tr>` : ''}
-        ${monthlyIn > 0 ? `<tr><td>Månedsbidrag fra medlemmer</td><td class="num">${fmt(monthlyIn)}</td></tr>` : ''}
-        ${incEntries.map(([c, a]) => `<tr><td>${escape(c)}</td><td class="num">${fmt(a)}</td></tr>`).join('')}
-        <tr class="rpt-sum"><td>Sum inntekter</td><td class="num rpt-pos">${fmt(totalIn)}</td></tr>
-      </tbody></table></div>`;
-  }
-  let expTable = '';
-  if (expEntries.length) {
-    expTable = `<div><div class="rpt-block-label">Utgifter</div>
-      <table class="rpt-table"><tbody>
-        ${expEntries.map(([c, a]) => {
-          const pct = totalOut > 0 ? Math.round(a / totalOut * 100) : 0;
-          return `<tr><td>${escape(c)}</td><td class="num">${fmt(a)}</td><td class="num rpt-dim" style="width:14mm;font-family:'Manrope',sans-serif;font-size:8.5pt;">${pct}%</td></tr>`;
-        }).join('')}
-        <tr class="rpt-sum"><td>Sum utgifter</td><td class="num rpt-neg">${fmt(totalOut)}</td><td></td></tr>
-      </tbody></table></div>`;
-  }
-
-  html += `<div class="catalog-page">
-    <div class="catalog-section-header">Sammen<em>drag</em><span class="count">Skoleåret ${yearLabel}</span></div>
-    <div class="rpt-body">
-      <div class="rpt-kv">
-        <div><div class="label">Inngående saldo 1. juli</div><div class="value">${fmt(openingBalance)}</div></div>
-        <div><div class="label">Resultat for skoleåret</div><div class="value ${net >= 0 ? 'pos' : 'neg'}">${signed(net)}</div></div>
-        <div><div class="label">Utgående saldo 30. juni</div><div class="value">${fmt(closingBalance)}</div></div>
-        <div><div class="label">Betalende medlemmer</div><div class="value">${activeMembers}</div></div>
-        <div><div class="label">Sum inntekter</div><div class="value pos">${fmt(totalIn)}</div></div>
-        <div><div class="label">Sum utgifter</div><div class="value neg">${fmt(totalOut)}</div></div>
-      </div>
-      ${incTable}
-      ${expTable}
-      <div class="rpt-note" style="margin-top:auto;">Rapporten er generert ${generated} og omfatter alle registrerte innbetalinger, andre inntekter og utgifter i perioden 1. juli ${startYear} – 30. juni ${startYear + 1}.</div>
-    </div>
-    ${footer}
+  const kvHtml = `<div class="rpt-kv">
+    <div><div class="label">Inngående saldo 1. juli</div><div class="value">${fmt(openingBalance)}</div></div>
+    <div><div class="label">Resultat for skoleåret</div><div class="value ${net >= 0 ? 'pos' : 'neg'}">${signed(net)}</div></div>
+    <div><div class="label">Utgående saldo 30. juni</div><div class="value">${fmt(closingBalance)}</div></div>
+    <div><div class="label">Betalende medlemmer</div><div class="value">${activeMembers}</div></div>
+    <div><div class="label">Sum inntekter</div><div class="value pos">${fmt(totalIn)}</div></div>
+    <div><div class="label">Sum utgifter</div><div class="value neg">${fmt(totalOut)}</div></div>
   </div>`;
+
+  const noteHtml = `<div class="rpt-note" style="margin-top:auto;">Rapporten er generert ${generated} og omfatter alle registrerte innbetalinger, andre inntekter og utgifter i perioden 1. juli ${startYear} – 30. juni ${startYear + 1}.</div>`;
+
+  const incTableRows = `
+    ${depositIn > 0 ? `<tr><td>Innskudd fra medlemmer</td><td class="num">${fmt(depositIn)}</td></tr>` : ''}
+    ${monthlyIn > 0 ? `<tr><td>Månedsbidrag fra medlemmer</td><td class="num">${fmt(monthlyIn)}</td></tr>` : ''}
+    ${incEntries.map(([c, a]) => `<tr><td>${escape(c)}</td><td class="num">${fmt(a)}</td></tr>`).join('')}
+    <tr class="rpt-sum"><td>Sum inntekter</td><td class="num rpt-pos">${fmt(totalIn)}</td></tr>`;
+
+  const incTableHtml = compact => (incRowCount > 1 || totalIn > 0)
+    ? `<div><div class="rpt-block-label">Inntekter</div>
+        <table class="rpt-table${compact ? ' rpt-compact' : ''}"><tbody>${incTableRows}</tbody></table></div>`
+    : '';
+
+  const expRow = ([c, a]) => {
+    const pct = totalOut > 0 ? Math.round(a / totalOut * 100) : 0;
+    return `<tr><td>${escape(c)}</td><td class="num">${fmt(a)}</td><td class="num rpt-dim" style="width:14mm;font-family:'Manrope',sans-serif;font-size:8.5pt;">${pct}%</td></tr>`;
+  };
+  const expSumRow = `<tr class="rpt-sum"><td>Sum utgifter</td><td class="num rpt-neg">${fmt(totalOut)}</td><td></td></tr>`;
+
+  // Får alt plass på én side? Vi prøver énside-varianten først og måler faktisk
+  // høyde i nettleseren — renner den over, bytter vi til todelt variant.
+  const totalRows = incRowCount + expRowCount;
+
+  const summarySinglePage = compact => {
+    const expTableHtml = expEntries.length
+      ? `<div><div class="rpt-block-label">Utgifter</div>
+          <table class="rpt-table${compact ? ' rpt-compact' : ''}"><tbody>${expEntries.map(expRow).join('')}${expSumRow}</tbody></table></div>`
+      : '';
+    return `<div class="catalog-page" id="rpt-summary-page">
+      <div class="catalog-section-header">Sammen<em>drag</em><span class="count">Skoleåret ${yearLabel}</span></div>
+      <div class="rpt-body">
+        ${kvHtml}
+        ${incTableHtml(compact)}
+        ${expTableHtml}
+        ${noteHtml}
+      </div>
+      ${footer}
+    </div>`;
+  };
+
+  const summarySplitPages = () => {
+    let out = `<div class="catalog-page">
+      <div class="catalog-section-header">Sammen<em>drag</em><span class="count">Skoleåret ${yearLabel}</span></div>
+      <div class="rpt-body" style="justify-content:space-between;">
+        ${kvHtml}
+        ${incTableHtml(false)}
+        ${noteHtml}
+      </div>
+      ${footer}
+    </div>`;
+
+    // Utgiftssider — del opp ved svært mange kategorier
+    const EXP_PER_PAGE = 24;
+    const expChunks = [];
+    for (let i = 0; i < expEntries.length; i += EXP_PER_PAGE) expChunks.push(expEntries.slice(i, i + EXP_PER_PAGE));
+    if (expChunks.length === 0) expChunks.push([]);
+
+    expChunks.forEach((items, idx) => {
+      const isLast = idx === expChunks.length - 1;
+      out += `<div class="catalog-page">
+        ${idx === 0 ? `<div class="catalog-section-header">Ut<em>gifter</em><span class="count">${expEntries.length} kategorier</span></div>` : ''}
+        <div class="rpt-body">
+          <div class="rpt-fill">
+            ${idx > 0 ? `<div class="rpt-block-label">Utgifter (forts.)</div>` : ''}
+            <table class="rpt-table"><tbody>${items.map(expRow).join('')}${isLast ? expSumRow : ''}</tbody></table>
+          </div>
+        </div>
+        ${footer}
+      </div>`;
+    });
+    return out;
+  };
+
+  const summaryHtml = summarySinglePage(totalRows > 12);
+  html += summaryHtml;
 
   // ---- Side 3: Måned for måned ----
   let running = openingBalance;
@@ -3416,6 +3468,14 @@ function renderReportSheet() {
   </div>`;
 
   sheet.innerHTML = html;
+
+  // Mål sammendragssiden mot en side som garantert holder A4-høyden (forsiden).
+  // Renner innholdet over, bytter vi til todelt variant som fyller sidene.
+  const sp = document.getElementById('rpt-summary-page');
+  const ref = sheet.querySelector('.catalog-page');
+  if (sp && ref && sp.offsetHeight > ref.offsetHeight + 2) {
+    sheet.innerHTML = html.replace(summaryHtml, summarySplitPages());
+  }
 }
 
 // ============ DRAW ============
