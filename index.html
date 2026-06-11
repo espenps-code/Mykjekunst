@@ -788,8 +788,8 @@
   @media print {
     body { background: white !important; }
     body * { visibility: hidden; }
-    .label-sheet, .label-sheet *, .catalog-sheet, .catalog-sheet * { visibility: visible; }
-    .label-sheet, .catalog-sheet { position: absolute; left: 0; top: 0; width: 100%; }
+    .label-sheet, .label-sheet *, .catalog-sheet, .catalog-sheet *, .report-sheet, .report-sheet * { visibility: visible; }
+    .label-sheet, .catalog-sheet, .report-sheet { position: absolute; left: 0; top: 0; width: 100%; }
     .label-print-preview, .catalog-print-preview { border: none; padding: 0; box-shadow: none; }
     .no-print { display: none !important; }
     .a4-page {
@@ -984,6 +984,138 @@
     padding-top: 4mm;
   }
   .catalog-page-footer em { color: #b89968; font-style: italic; }
+
+  /* Årsrapport (A4) — bygger på katalogdesignet */
+  .rpt-cover-figures {
+    display: flex;
+    gap: 14mm;
+    justify-content: center;
+    margin-bottom: 18mm;
+  }
+  .rpt-cover-figures > div { text-align: center; }
+  .rpt-cover-figures .label {
+    font-size: 9pt;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    margin-bottom: 2mm;
+  }
+  .rpt-cover-figures .value {
+    font-family: 'Fraunces', serif;
+    font-size: 22pt;
+    font-weight: 600;
+    color: #1a1814;
+  }
+  .rpt-cover-figures .value.pos { color: #5a7a4f; }
+  .rpt-cover-figures .value.neg { color: #b8410f; }
+
+  .rpt-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8mm;
+    padding-bottom: 14mm; /* klaring til footer */
+  }
+  .rpt-block-label {
+    font-size: 9pt;
+    font-weight: 600;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    margin-bottom: 3mm;
+    border-bottom: 0.5px solid #d4ccb8;
+    padding-bottom: 2mm;
+  }
+  .rpt-kv {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4mm;
+  }
+  .rpt-kv > div {
+    border: 0.5px solid #d4ccb8;
+    padding: 5mm 5mm 4mm;
+    background: #faf8f3;
+  }
+  .rpt-kv .label {
+    font-size: 8pt;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 1.5mm;
+  }
+  .rpt-kv .value {
+    font-family: 'Fraunces', serif;
+    font-size: 17pt;
+    font-weight: 600;
+    color: #1a1814;
+  }
+  .rpt-kv .value.pos { color: #5a7a4f; }
+  .rpt-kv .value.neg { color: #b8410f; }
+
+  table.rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+  table.rpt-table th {
+    font-size: 8pt;
+    font-weight: 600;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    text-align: left;
+    padding: 0 3mm 2mm 0;
+    border-bottom: 1px solid #1a1814;
+  }
+  table.rpt-table td {
+    padding: 2.6mm 3mm 2.6mm 0;
+    border-bottom: 0.5px solid #d4ccb8;
+    vertical-align: middle;
+  }
+  table.rpt-table th.num, table.rpt-table td.num {
+    text-align: right;
+    padding-right: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  table.rpt-table td.num { font-family: 'Fraunces', serif; font-size: 11pt; }
+  table.rpt-table tr.rpt-sum td {
+    border-bottom: none;
+    border-top: 1.5px solid #1a1814;
+    font-weight: 600;
+    padding-top: 3mm;
+  }
+  table.rpt-table tr.rpt-sum td.num { font-size: 12pt; }
+  .rpt-pos { color: #5a7a4f; }
+  .rpt-neg { color: #b8410f; }
+  .rpt-dim { color: #b0a896; }
+
+  /* Måned for måned skal fylle siden */
+  .rpt-month-wrap { flex: 1; display: flex; flex-direction: column; }
+  .rpt-month-wrap table.rpt-table { flex: 1; height: 100%; }
+  .rpt-month-wrap table.rpt-table td { padding-top: 0; padding-bottom: 0; }
+
+  .rpt-signatures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18mm;
+    margin-top: auto;
+    padding-top: 10mm;
+  }
+  .rpt-signatures > div {
+    border-top: 0.5px solid #1a1814;
+    padding-top: 2mm;
+    font-size: 9pt;
+    color: #8a8275;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+  .rpt-note {
+    font-size: 9.5pt;
+    color: #8a8275;
+    line-height: 1.6;
+    font-style: italic;
+    font-family: 'Fraunces', serif;
+  }
 
   @media (max-width: 640px) {
     .container { padding: 16px 12px; }
@@ -1420,8 +1552,9 @@
     <div class="section">
       <div class="section-header">
         <div class="section-title">Års<em>rapport</em></div>
-        <div>
+        <div style="display:flex;gap:8px;align-items:center;">
           <select id="report-year" onchange="renderReports()" style="width:auto;"></select>
+          <button class="btn btn-secondary btn-small" onclick="openReportPrintView()">Skriv ut årsrapport</button>
         </div>
       </div>
       <div id="report-content"></div>
@@ -1440,6 +1573,25 @@
         <button class="btn btn-secondary" onclick="exportCSV('summary')">Sammendrag</button>
       </div>
     </div>
+  </div>
+
+  <!-- REPORT PRINT (A4) -->
+  <div class="view" id="view-report-print">
+    <div class="section no-print">
+      <div class="section-header">
+        <div class="section-title">Skriv ut <em>årsrapport</em></div>
+        <button class="btn btn-secondary btn-small" onclick="closeReportPrintView()">Tilbake til rapporter</button>
+      </div>
+      <p style="color:var(--muted);margin-bottom:16px;font-size:14px;">Årsrapport for skoleåret (juli–juni) med sammendrag og måned-for-måned-oversikt. Bruk nettleserens "Skriv ut" (Ctrl+P / Cmd+P) — sørg for at marger settes til "Ingen / Standard" og at bakgrunnsgrafikk er aktivert.</p>
+      <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;text-transform:none;letter-spacing:0;font-weight:400;">
+          Skoleår
+          <select id="report-print-year" onchange="renderReportSheet()" style="width:auto;"></select>
+        </label>
+        <button class="btn btn-small" onclick="window.print()" style="margin-left:auto;">🖨 Skriv ut</button>
+      </div>
+    </div>
+    <div class="report-sheet" id="report-sheet"></div>
   </div>
 
   <!-- DRAW -->
@@ -3054,6 +3206,216 @@ function exportCSV(type) {
   a.click();
   URL.revokeObjectURL(url);
   toast('CSV lastet ned');
+}
+
+// ============ ÅRSRAPPORT (A4-UTSKRIFT) ============
+// Skoleåret går fra 1. juli til 30. juni.
+function schoolYearOf(dateStr) {
+  const d = new Date(dateStr);
+  return d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1;
+}
+
+function openReportPrintView() {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.getElementById('view-report-print').classList.add('active');
+
+  // Bygg liste over skoleår fra data
+  const sel = document.getElementById('report-print-year');
+  const years = new Set();
+  state.payments.forEach(p => years.add(schoolYearOf(p.date)));
+  state.expenses.forEach(e => years.add(schoolYearOf(e.date)));
+  (state.otherIncome || []).forEach(i => years.add(schoolYearOf(i.date)));
+  years.add(schoolYearOf(new Date().toISOString().slice(0, 10)));
+  const sorted = [...years].sort((a, b) => b - a);
+  const current = sel.value && sorted.includes(parseInt(sel.value)) ? parseInt(sel.value) : sorted[0];
+  sel.innerHTML = sorted.map(y => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}/${y + 1}</option>`).join('');
+
+  renderReportSheet();
+}
+
+function closeReportPrintView() {
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.querySelector('nav button[data-view="reports"]').classList.add('active');
+  document.getElementById('view-reports').classList.add('active');
+}
+
+function renderReportSheet() {
+  const sheet = document.getElementById('report-sheet');
+  if (!sheet) return;
+
+  const startYear = parseInt(document.getElementById('report-print-year').value);
+  const from = new Date(startYear, 6, 1);            // 1. juli
+  const to = new Date(startYear + 1, 6, 1);          // t.o.m. 30. juni
+  const inYear = d => { const x = new Date(d); return x >= from && x < to; };
+  const before = d => new Date(d) < from;
+
+  const clubName = state.settings.name || 'MykjeKunst';
+  const yearLabel = `${startYear}/${startYear + 1}`;
+
+  // Transaksjoner i skoleåret
+  const yp = state.payments.filter(p => inYear(p.date));
+  const ye = state.expenses.filter(e => inYear(e.date));
+  const yi = (state.otherIncome || []).filter(i => inYear(i.date));
+
+  const memberIn = yp.reduce((s, p) => s + p.amount, 0);
+  const depositIn = yp.filter(p => p.type === 'deposit').reduce((s, p) => s + p.amount, 0);
+  const monthlyIn = yp.filter(p => p.type === 'monthly').reduce((s, p) => s + p.amount, 0);
+  const otherIn = yi.reduce((s, i) => s + i.amount, 0);
+  const totalIn = memberIn + otherIn;
+  const totalOut = ye.reduce((s, e) => s + e.amount, 0);
+  const net = totalIn - totalOut;
+
+  // Inngående saldo = startsaldo + alt før 1. juli
+  const inBefore = state.payments.filter(p => before(p.date)).reduce((s, p) => s + p.amount, 0)
+    + (state.otherIncome || []).filter(i => before(i.date)).reduce((s, i) => s + i.amount, 0);
+  const outBefore = state.expenses.filter(e => before(e.date)).reduce((s, e) => s + e.amount, 0);
+  const openingBalance = (state.settings.opening || 0) + inBefore - outBefore;
+  const closingBalance = openingBalance + net;
+
+  // Aktive medlemmer = medlemmer med innbetaling i skoleåret
+  const activeMembers = new Set(yp.map(p => p.memberId)).size;
+
+  // Kategorier
+  const expByCat = {};
+  ye.forEach(e => { expByCat[e.category || 'Annet'] = (expByCat[e.category || 'Annet'] || 0) + e.amount; });
+  const incByCat = {};
+  yi.forEach(i => { incByCat[i.category || 'Annet'] = (incByCat[i.category || 'Annet'] || 0) + i.amount; });
+
+  // Måned for måned, juli → juni
+  const monthNames = ['Juli', 'August', 'September', 'Oktober', 'November', 'Desember', 'Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni'];
+  const months = monthNames.map((name, idx) => {
+    const m = (idx + 6) % 12;                 // 6=juli ... 5=juni
+    const y = idx < 6 ? startYear : startYear + 1;
+    return { name, m, y, memberIn: 0, otherIn: 0, out: 0 };
+  });
+  const slot = d => { const x = new Date(d); return months.find(mo => mo.m === x.getMonth() && mo.y === x.getFullYear()); };
+  yp.forEach(p => { const s = slot(p.date); if (s) s.memberIn += p.amount; });
+  yi.forEach(i => { const s = slot(i.date); if (s) s.otherIn += i.amount; });
+  ye.forEach(e => { const s = slot(e.date); if (s) s.out += e.amount; });
+
+  const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+  const cls = n => n > 0 ? 'rpt-pos' : n < 0 ? 'rpt-neg' : '';
+  const footer = `<div class="catalog-page-footer">${escape(clubName)} <em>—</em> for kunst i hverdagen</div>`;
+  const generated = new Date().toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  let html = '';
+
+  // ---- Side 1: Forside ----
+  html += `<div class="catalog-page">
+    <div class="catalog-cover">
+      <div class="catalog-cover-title">Års<em>rapport</em></div>
+      <div class="catalog-cover-subtitle">${escape(clubName)}</div>
+      <div style="width:60mm;height:1px;background:#d4ccb8;margin:8mm 0 12mm;"></div>
+      <div class="rpt-cover-figures">
+        <div><div class="label">Inntekter</div><div class="value pos">${fmt(totalIn)}</div></div>
+        <div><div class="label">Utgifter</div><div class="value neg">${fmt(totalOut)}</div></div>
+        <div><div class="label">Resultat</div><div class="value ${net >= 0 ? 'pos' : 'neg'}">${signed(net)}</div></div>
+      </div>
+      <div style="font-family:'Fraunces',serif;font-size:13pt;color:#1a1814;margin-bottom:18mm;line-height:1.6;max-width:130mm;text-align:center;">
+        Skoleåret ${yearLabel} hadde klubben <strong>${activeMembers}</strong> betalende ${activeMembers === 1 ? 'medlem' : 'medlemmer'}.
+        Kassebeholdningen gikk fra <strong>${fmt(openingBalance)}</strong> ved skolestart
+        til <strong>${fmt(closingBalance)}</strong> ved skoleslutt.
+      </div>
+      <div class="catalog-cover-meta">Skoleåret ${yearLabel} · Juli – Juni</div>
+    </div>
+    ${footer}
+  </div>`;
+
+  // ---- Side 2: Sammendrag ----
+  let catRows = '';
+  const incEntries = Object.entries(incByCat).sort((a, b) => b[1] - a[1]);
+  const expEntries = Object.entries(expByCat).sort((a, b) => b[1] - a[1]);
+
+  let incTable = '';
+  if (incEntries.length || memberIn > 0) {
+    incTable = `<div><div class="rpt-block-label">Inntekter</div>
+      <table class="rpt-table"><tbody>
+        ${depositIn > 0 ? `<tr><td>Innskudd fra medlemmer</td><td class="num">${fmt(depositIn)}</td></tr>` : ''}
+        ${monthlyIn > 0 ? `<tr><td>Månedsbidrag fra medlemmer</td><td class="num">${fmt(monthlyIn)}</td></tr>` : ''}
+        ${incEntries.map(([c, a]) => `<tr><td>${escape(c)}</td><td class="num">${fmt(a)}</td></tr>`).join('')}
+        <tr class="rpt-sum"><td>Sum inntekter</td><td class="num rpt-pos">${fmt(totalIn)}</td></tr>
+      </tbody></table></div>`;
+  }
+  let expTable = '';
+  if (expEntries.length) {
+    expTable = `<div><div class="rpt-block-label">Utgifter</div>
+      <table class="rpt-table"><tbody>
+        ${expEntries.map(([c, a]) => {
+          const pct = totalOut > 0 ? Math.round(a / totalOut * 100) : 0;
+          return `<tr><td>${escape(c)}</td><td class="num">${fmt(a)}</td><td class="num rpt-dim" style="width:14mm;font-family:'Manrope',sans-serif;font-size:8.5pt;">${pct}%</td></tr>`;
+        }).join('')}
+        <tr class="rpt-sum"><td>Sum utgifter</td><td class="num rpt-neg">${fmt(totalOut)}</td><td></td></tr>
+      </tbody></table></div>`;
+  }
+
+  html += `<div class="catalog-page">
+    <div class="catalog-section-header">Sammen<em>drag</em><span class="count">Skoleåret ${yearLabel}</span></div>
+    <div class="rpt-body">
+      <div class="rpt-kv">
+        <div><div class="label">Inngående saldo 1. juli</div><div class="value">${fmt(openingBalance)}</div></div>
+        <div><div class="label">Resultat for skoleåret</div><div class="value ${net >= 0 ? 'pos' : 'neg'}">${signed(net)}</div></div>
+        <div><div class="label">Utgående saldo 30. juni</div><div class="value">${fmt(closingBalance)}</div></div>
+        <div><div class="label">Betalende medlemmer</div><div class="value">${activeMembers}</div></div>
+        <div><div class="label">Sum inntekter</div><div class="value pos">${fmt(totalIn)}</div></div>
+        <div><div class="label">Sum utgifter</div><div class="value neg">${fmt(totalOut)}</div></div>
+      </div>
+      ${incTable}
+      ${expTable}
+      <div class="rpt-note" style="margin-top:auto;">Rapporten er generert ${generated} og omfatter alle registrerte innbetalinger, andre inntekter og utgifter i perioden 1. juli ${startYear} – 30. juni ${startYear + 1}.</div>
+    </div>
+    ${footer}
+  </div>`;
+
+  // ---- Side 3: Måned for måned ----
+  let running = openingBalance;
+  const monthRows = months.map(mo => {
+    const mIn = mo.memberIn + mo.otherIn;
+    const mNet = mIn - mo.out;
+    running += mNet;
+    const empty = mIn === 0 && mo.out === 0;
+    return `<tr>
+      <td>${mo.name} <span class="rpt-dim" style="font-size:8pt;">${mo.y}</span></td>
+      <td class="num ${empty || mIn === 0 ? 'rpt-dim' : 'rpt-pos'}">${mIn ? '+' + fmt(mIn) : '—'}</td>
+      <td class="num ${empty || mo.out === 0 ? 'rpt-dim' : 'rpt-neg'}">${mo.out ? '−' + fmt(mo.out) : '—'}</td>
+      <td class="num ${empty ? 'rpt-dim' : cls(mNet)}">${empty ? '—' : signed(mNet)}</td>
+      <td class="num"><strong>${fmt(running)}</strong></td>
+    </tr>`;
+  }).join('');
+
+  html += `<div class="catalog-page">
+    <div class="catalog-section-header">Måned for <em>måned</em><span class="count">Skoleåret ${yearLabel}</span></div>
+    <div class="rpt-body">
+      <div class="rpt-month-wrap">
+        <table class="rpt-table">
+          <thead><tr>
+            <th>Måned</th>
+            <th class="num">Inntekter</th>
+            <th class="num">Utgifter</th>
+            <th class="num">Resultat</th>
+            <th class="num">Saldo</th>
+          </tr></thead>
+          <tbody>
+            ${monthRows}
+            <tr class="rpt-sum">
+              <td>Hele skoleåret</td>
+              <td class="num rpt-pos">${totalIn ? '+' + fmt(totalIn) : '—'}</td>
+              <td class="num rpt-neg">${totalOut ? '−' + fmt(totalOut) : '—'}</td>
+              <td class="num ${cls(net)}">${signed(net)}</td>
+              <td class="num">${fmt(closingBalance)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rpt-signatures">
+        <div>Kasserer</div>
+        <div>Leder</div>
+      </div>
+    </div>
+    ${footer}
+  </div>`;
+
+  sheet.innerHTML = html;
 }
 
 // ============ DRAW ============
