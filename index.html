@@ -1608,6 +1608,7 @@
         <div style="display:flex;gap:6px;">
           <button class="btn btn-secondary btn-small draw-type-btn active" id="draw-tab-A" onclick="switchDrawType('A')">A-trekning</button>
           <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-B" onclick="switchDrawType('B')">B-trekning</button>
+          <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-lottery" onclick="switchDrawType('lottery')">Lotteri</button>
           <button class="btn btn-secondary btn-small draw-type-btn" id="draw-tab-plan" onclick="switchDrawType('plan')">Årets trekning</button>
         </div>
       </div>
@@ -1650,6 +1651,47 @@
         <div style="margin-top:24px;">
           <label>Trekningshistorikk</label>
           <div id="draw-history"></div>
+        </div>
+      </div>
+
+      <!-- Lottery view -->
+      <div id="draw-lottery-view" style="display:none;">
+        <p style="color:var(--muted);margin-bottom:20px;font-size:14px;">Lotteri med lodd — hvert lodd er én vinnersjanse. Vinnerloddet tas ut av bøtta etter trekning, så samme person kan vinne flere ganger om de har flere lodd igjen. Lotteriet lagres til du nullstiller det.</p>
+
+        <div class="draw-stage" id="lottery-stage">
+          <div class="draw-label">Vinnerloddet tilhører</div>
+          <div class="draw-name" id="lottery-name">—</div>
+          <div class="draw-type-badge">Lotteri</div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          <button class="btn" onclick="startLotteryDraw()" id="lottery-btn">Trekk vinnerlodd</button>
+          <button class="btn btn-secondary" onclick="resetLottery()">Nytt lotteri</button>
+        </div>
+
+        <div style="margin-top:32px;">
+          <label style="margin-bottom:12px;">Legg til deltaker</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+            <div style="flex:2;min-width:160px;">
+              <label>Navn</label>
+              <input type="text" id="lottery-new-name" placeholder="Navn" onkeydown="if(event.key==='Enter')addLotteryEntry()">
+            </div>
+            <div style="width:120px;">
+              <label>Antall lodd</label>
+              <input type="number" id="lottery-new-tickets" value="1" min="1" onkeydown="if(event.key==='Enter')addLotteryEntry()">
+            </div>
+            <button class="btn" onclick="addLotteryEntry()">Legg til</button>
+          </div>
+        </div>
+
+        <div style="margin-top:24px;">
+          <label>Deltakere og lodd</label>
+          <div id="lottery-entries"></div>
+        </div>
+
+        <div style="margin-top:24px;">
+          <label>Vinnere i dette lotteriet</label>
+          <div id="lottery-winners"></div>
         </div>
       </div>
     </div>
@@ -1770,7 +1812,8 @@ let state = {
   draws: [],
   artworks: [],
   otherIncome: [],
-  parsedTx: []
+  parsedTx: [],
+  lottery: { entries: [], winners: [] }
 };
 
 let currentMemberId = null;
@@ -1876,7 +1919,8 @@ function subscribeToData() {
             draws: data.draws || [],
             artworks: data.artworks || [],
             otherIncome: data.otherIncome || [],
-            parsedTx: data.parsedTx || []
+            parsedTx: data.parsedTx || [],
+            lottery: data.lottery || { entries: [], winners: [] }
           };
           if (!firstLoad) {
             loadSettingsUI();
@@ -1911,6 +1955,7 @@ function save() {
         artworks: state.artworks,
         otherIncome: state.otherIncome,
         parsedTx: state.parsedTx,
+        lottery: state.lottery || { entries: [], winners: [] },
         _writtenAt: Date.now()
       });
       setSyncStatus('ok', 'Synkronisert');
@@ -3483,28 +3528,39 @@ let drawTimer = null;
 let currentDrawType = 'A';
 
 function switchDrawType(type) {
-  // Toggle planning view vs. active draw view
+  // Toggle between planning view, lottery view and the active A/B draw view
   const planView = document.getElementById('draw-plan-view');
   const activeView = document.getElementById('draw-active-view');
+  const lotteryView = document.getElementById('draw-lottery-view');
   const tabPlan = document.getElementById('draw-tab-plan');
   const tabA = document.getElementById('draw-tab-A');
   const tabB = document.getElementById('draw-tab-B');
+  const tabLottery = document.getElementById('draw-tab-lottery');
+
+  if (planView) planView.style.display = 'none';
+  if (activeView) activeView.style.display = 'none';
+  if (lotteryView) lotteryView.style.display = 'none';
+  tabPlan?.classList.remove('active');
+  tabA?.classList.remove('active');
+  tabB?.classList.remove('active');
+  tabLottery?.classList.remove('active');
 
   if (type === 'plan') {
     if (planView) planView.style.display = 'block';
-    if (activeView) activeView.style.display = 'none';
     tabPlan?.classList.add('active');
-    tabA?.classList.remove('active');
-    tabB?.classList.remove('active');
     renderDrawPlan();
     return;
   }
 
-  // Switching to A or B — show the active draw stage
-  if (planView) planView.style.display = 'none';
-  if (activeView) activeView.style.display = 'block';
-  tabPlan?.classList.remove('active');
+  if (type === 'lottery') {
+    if (lotteryView) lotteryView.style.display = 'block';
+    tabLottery?.classList.add('active');
+    renderLottery();
+    return;
+  }
 
+  // Switching to A or B — show the active draw stage
+  if (activeView) activeView.style.display = 'block';
   currentDrawType = type;
   tabA?.classList.toggle('active', type === 'A');
   tabB?.classList.toggle('active', type === 'B');
@@ -3899,8 +3955,8 @@ function startDraw() {
   tick();
 }
 
-function launchConfetti() {
-  const stage = document.querySelector('.draw-stage');
+function launchConfetti(stageEl) {
+  const stage = stageEl || document.querySelector('.draw-stage');
   if (!stage) return;
   const colors = ['#b89968', '#b8410f', '#4a6741', '#d4683a', '#f5f1e8'];
   for (let i = 0; i < 30; i++) {
@@ -3930,6 +3986,209 @@ function resetDraw() {
   // Hide the artwork picker
   const picker = document.getElementById('draw-artwork-picker');
   if (picker) picker.style.display = 'none';
+}
+
+// ============ LOTTERY ============
+let lotteryTimer = null;
+
+function lotteryState() {
+  if (!state.lottery) state.lottery = { entries: [], winners: [] };
+  if (!state.lottery.entries) state.lottery.entries = [];
+  if (!state.lottery.winners) state.lottery.winners = [];
+  return state.lottery;
+}
+
+function addLotteryEntry() {
+  const nameEl = document.getElementById('lottery-new-name');
+  const ticketsEl = document.getElementById('lottery-new-tickets');
+  const name = nameEl.value.trim();
+  const tickets = Math.max(1, parseInt(ticketsEl.value) || 1);
+  if (!name) { toast('Skriv inn navn', true); return; }
+
+  const lot = lotteryState();
+  const existing = lot.entries.find(e => e.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    existing.tickets += tickets;
+    toast(`${existing.name} har nå ${existing.tickets} lodd`);
+  } else {
+    lot.entries.push({ id: uid(), name, tickets });
+    toast(`${name} lagt til med ${tickets} ${tickets === 1 ? 'lodd' : 'lodd'}`);
+  }
+  nameEl.value = '';
+  ticketsEl.value = '1';
+  nameEl.focus();
+  save();
+  renderLottery();
+}
+
+function updateLotteryTickets(id, value) {
+  const lot = lotteryState();
+  const entry = lot.entries.find(e => e.id === id);
+  if (!entry) return;
+  const t = parseInt(value);
+  if (isNaN(t) || t < 1) {
+    renderLottery(); // tilbakestill ugyldig verdi
+    return;
+  }
+  entry.tickets = t;
+  save();
+  renderLottery();
+}
+
+function removeLotteryEntry(id) {
+  const lot = lotteryState();
+  lot.entries = lot.entries.filter(e => e.id !== id);
+  save();
+  renderLottery();
+}
+
+function renderLottery() {
+  const lot = lotteryState();
+  const entriesEl = document.getElementById('lottery-entries');
+  const winnersEl = document.getElementById('lottery-winners');
+  if (!entriesEl || !winnersEl) return;
+
+  const totalTickets = lot.entries.reduce((s, e) => s + e.tickets, 0);
+
+  if (lot.entries.length === 0) {
+    entriesEl.innerHTML = '<div class="empty-state" style="padding:20px;text-align:center;color:var(--muted);font-size:14px;">Ingen deltakere ennå. Legg til navn og lodd over.</div>';
+  } else {
+    let rows = lot.entries.map(e => {
+      const pct = totalTickets > 0 ? (e.tickets / totalTickets * 100) : 0;
+      const pctStr = pct >= 10 ? Math.round(pct) + '%' : pct.toFixed(1).replace('.', ',') + '%';
+      return `<tr>
+        <td>${escape(e.name)}</td>
+        <td class="num" style="width:110px;"><input type="number" min="1" value="${e.tickets}" style="width:80px;padding:6px 8px;text-align:right;" onchange="updateLotteryTickets('${e.id}', this.value)"></td>
+        <td class="num" style="color:var(--muted);width:90px;">${pctStr}</td>
+        <td style="width:40px;text-align:right;"><button class="btn btn-danger btn-small" onclick="removeLotteryEntry('${e.id}')" title="Fjern">✕</button></td>
+      </tr>`;
+    }).join('');
+    entriesEl.innerHTML = `<table style="margin-top:8px;">
+      <thead><tr><th>Navn</th><th class="num">Lodd</th><th class="num">Vinnersjanse</th><th></th></tr></thead>
+      <tbody>${rows}
+        <tr><td style="font-weight:600;">Totalt</td><td class="num" style="font-weight:600;padding-right:14px;">${totalTickets}</td><td class="num" style="color:var(--muted);">${totalTickets > 0 ? '100%' : '—'}</td><td></td></tr>
+      </tbody></table>`;
+  }
+
+  if (lot.winners.length === 0) {
+    winnersEl.innerHTML = '<div style="padding:12px 0;color:var(--muted);font-size:14px;">Ingen vinnere trukket ennå.</div>';
+  } else {
+    const rows = lot.winners.map((w, i) => `<tr>
+      <td style="width:50px;color:var(--muted);">${i + 1}.</td>
+      <td style="font-family:'Fraunces',serif;font-size:16px;">${escape(w.name)}</td>
+      <td style="color:var(--muted);font-size:13px;text-align:right;">${fmtDate(w.date)}</td>
+    </tr>`).join('');
+    winnersEl.innerHTML = `<table style="margin-top:8px;"><tbody>${rows}</tbody></table>`;
+  }
+}
+
+function startLotteryDraw() {
+  const lot = lotteryState();
+  // Bøtta med lodd — hvert lodd er én vinnersjanse
+  const pool = [];
+  lot.entries.forEach(e => { for (let i = 0; i < e.tickets; i++) pool.push(e); });
+
+  if (pool.length === 0) {
+    toast('Ingen lodd i bøtta. Legg til deltakere først.', true);
+    return;
+  }
+
+  const btn = document.getElementById('lottery-btn');
+  const nameEl = document.getElementById('lottery-name');
+  const stageEl = document.getElementById('lottery-stage');
+  btn.disabled = true;
+  btn.textContent = 'Trekker …';
+  nameEl.classList.add('spinning');
+  nameEl.classList.remove('winner-reveal');
+  stageEl.classList.add('spinning');
+  stageEl.classList.remove('winner');
+
+  // Trekk vinnerloddet på forhånd
+  const winnerEntry = pool[Math.floor(Math.random() * pool.length)];
+
+  const totalDurationMs = 5500;
+  const startTime = Date.now();
+  let lastName = '';
+  const uniqueNames = [...new Set(lot.entries.map(e => e.name))];
+
+  function tick() {
+    const elapsed = Date.now() - startTime;
+    const progress = elapsed / totalDurationMs;
+
+    if (progress >= 1) {
+      nameEl.textContent = winnerEntry.name;
+      nameEl.classList.remove('spinning');
+      nameEl.classList.add('winner-reveal');
+      stageEl.classList.remove('spinning');
+      stageEl.classList.add('winner');
+      launchConfetti(stageEl);
+
+      // Registrer vinneren og ta vinnerloddet ut av bøtta
+      lot.winners.push({ id: uid(), name: winnerEntry.name, date: new Date().toISOString().slice(0, 10) });
+      winnerEntry.tickets -= 1;
+      if (winnerEntry.tickets <= 0) {
+        lot.entries = lot.entries.filter(e => e.id !== winnerEntry.id);
+      }
+      save();
+      btn.disabled = false;
+      btn.textContent = 'Trekk nytt vinnerlodd';
+      renderLottery();
+      toast('🎉 ' + winnerEntry.name + ' vant lotteriet!');
+      return;
+    }
+
+    // Samme dramaturgi som A/B-trekningen
+    let nextDelay;
+    if (progress < 0.4) {
+      nextDelay = 50;
+    } else if (progress < 0.7) {
+      nextDelay = 80 + (progress - 0.4) * 400;
+    } else if (progress < 0.9) {
+      nextDelay = 200 + (progress - 0.7) * 1000;
+    } else {
+      nextDelay = 400 + (progress - 0.9) * 3000;
+    }
+
+    let displayName;
+    if (progress > 0.85 && Math.random() < (progress - 0.85) * 6) {
+      displayName = winnerEntry.name;
+    } else {
+      // Vektet visning: navn med flere lodd dukker oftere opp
+      let candidate;
+      let tries = 0;
+      do {
+        candidate = pool[Math.floor(Math.random() * pool.length)].name;
+        tries++;
+      } while (candidate === lastName && tries < 5 && uniqueNames.length > 1);
+      displayName = candidate;
+    }
+
+    nameEl.textContent = displayName;
+    lastName = displayName;
+    lotteryTimer = setTimeout(tick, nextDelay);
+  }
+
+  tick();
+}
+
+function resetLottery() {
+  const lot = lotteryState();
+  if (lot.entries.length === 0 && lot.winners.length === 0) {
+    toast('Lotteriet er allerede tomt');
+    return;
+  }
+  if (!confirm('Nullstille lotteriet? Alle deltakere, lodd og vinnerlisten slettes.')) return;
+  if (lotteryTimer) { clearTimeout(lotteryTimer); lotteryTimer = null; }
+  state.lottery = { entries: [], winners: [] };
+  const nameEl = document.getElementById('lottery-name');
+  const stageEl = document.getElementById('lottery-stage');
+  if (nameEl) { nameEl.textContent = '—'; nameEl.classList.remove('spinning', 'winner-reveal'); }
+  if (stageEl) stageEl.classList.remove('spinning', 'winner');
+  const btn = document.getElementById('lottery-btn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Trekk vinnerlodd'; }
+  save();
+  renderLottery();
+  toast('Nytt lotteri klart');
 }
 
 function showDrawArtworkPicker(drawId, winner, drawType) {
@@ -5167,6 +5426,7 @@ function resetAll() {
   state.artworks = [];
   state.otherIncome = [];
   state.parsedTx = [];
+  state.lottery = { entries: [], winners: [] };
   save();
   renderAll();
   toast('Alt slettet');
@@ -5220,6 +5480,7 @@ function renderAll() {
   renderDrawParticipants();
   renderDrawHistory();
   renderDrawPlan();
+  renderLottery();
 }
 
 // ============ DRAG-DROP ============
@@ -5309,6 +5570,11 @@ window.resetDraw = resetDraw;
 window.toggleDrawActive = toggleDrawActive;
 window.deleteDraw = deleteDraw;
 window.switchDrawType = switchDrawType;
+window.addLotteryEntry = addLotteryEntry;
+window.updateLotteryTickets = updateLotteryTickets;
+window.removeLotteryEntry = removeLotteryEntry;
+window.startLotteryDraw = startLotteryDraw;
+window.resetLottery = resetLottery;
 window.pickArtworkForDraw = pickArtworkForDraw;
 window.saveSettings = saveSettings;
 window.exportData = exportData;
