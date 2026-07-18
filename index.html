@@ -1428,11 +1428,11 @@
       <div class="form-grid">
         <div>
           <label>Tittel</label>
-          <input type="text" id="new-artwork-title" placeholder="Sommernatt ved Skagen">
+          <input type="text" id="new-artwork-title" placeholder="Sommernatt ved Skagen" oninput="updateBioCounter('new-artwork')">
         </div>
         <div>
           <label>Kunstner</label>
-          <input type="text" id="new-artwork-artist" placeholder="P.S. Krøyer">
+          <input type="text" id="new-artwork-artist" placeholder="P.S. Krøyer" oninput="updateBioCounter('new-artwork')">
         </div>
         <div>
           <label>Type</label>
@@ -1484,7 +1484,8 @@
       </div>
       <div style="margin-bottom:12px;">
         <label>Fakta om kunstneren</label>
-        <textarea id="new-artwork-bio" rows="3" placeholder="Født 1851 i Stavanger. Ledende skikkelse i Skagenmalerne ..."></textarea>
+        <textarea id="new-artwork-bio" rows="3" placeholder="Født 1851 i Stavanger. Ledende skikkelse i Skagenmalerne ..." oninput="updateBioCounter('new-artwork')"></textarea>
+        <div id="new-artwork-bio-counter" style="font-size:12px;color:var(--muted);margin-top:4px;"></div>
       </div>
       <button class="btn" onclick="addArtwork()">Legg til kunstverk</button>
     </div>
@@ -2828,6 +2829,45 @@ function suggestMember(tx) {
 
   // Require at least one whole-word match
   return bestScore >= 1 ? bestMember : null;
+}
+
+// ---- Tegnteller for kunstlapper (A6) ----
+// Biotekstfeltet på lappen har overflow:hidden, så for lang tekst blir
+// stille kuttet på utskrift. Kapasiteten avhenger av hvor mange linjer
+// tittel og kunstnernavn tar, siden de spiser av samme høyde.
+function labelBioCapacity(title, artist) {
+  const titleLines = Math.max(1, Math.ceil((title || '').trim().length / 20));
+  const artistLines = Math.max(1, Math.ceil(((artist || '').trim().length + 3) / 25));
+  const extraMm = (titleLines - 1) * 8.54 + (artistLines - 1) * 6.09;
+  const bioLines = Math.floor((76.4 - extraMm) / 5.43);
+  return { chars: Math.max(0, bioLines * 36), titleLines, artistLines };
+}
+
+function updateBioCounter(prefix) {
+  const bio = document.getElementById(prefix + '-bio');
+  const out = document.getElementById(prefix + '-bio-counter');
+  if (!bio || !out) return;
+  const title = (document.getElementById(prefix + '-title') || {}).value || '';
+  const artist = (document.getElementById(prefix + '-artist') || {}).value || '';
+  const cap = labelBioCapacity(title, artist);
+  const len = bio.value.trim().length;
+  const pct = cap.chars ? len / cap.chars : 1;
+
+  let color = 'var(--muted)';
+  let note = '';
+  if (pct > 1) {
+    color = 'var(--accent)';
+    note = ' — for langt, ca. ' + (len - cap.chars) + ' tegn blir kuttet på lappen';
+  } else if (pct > 0.9) {
+    color = '#b8860b';
+    note = ' — nær grensen';
+  }
+  let warn = '';
+  if (cap.titleLines > 1 || cap.artistLines > 1) {
+    warn = ' (lang tittel/kunstnernavn tar ekstra plass)';
+  }
+  out.style.color = color;
+  out.textContent = len + ' / ' + cap.chars + ' tegn' + note + warn;
 }
 
 // ---- Månedsbidrag: godkjente beløp (hovedbeløp + evt. overgangsbeløp) ----
@@ -4756,6 +4796,7 @@ async function addArtwork() {
   document.getElementById('new-artwork-cost').value = '';
   document.getElementById('new-artwork-year').value = '';
   document.getElementById('new-artwork-bio').value = '';
+  updateBioCounter('new-artwork');
   document.getElementById('new-artwork-drawcategory').value = 'A';
   document.getElementById('artwork-img-preview').style.display = 'none';
   document.getElementById('artwork-img-status').textContent = '';
@@ -4920,9 +4961,9 @@ function openArtwork(id) {
     </div>
     <div id="edit-image-status" style="font-size:11px;color:var(--muted);margin-bottom:8px;"></div>
     <label>Tittel</label>
-    <input type="text" id="edit-artwork-title" value="${escape(a.title)}" style="margin-bottom:8px;">
+    <input type="text" id="edit-artwork-title" value="${escape(a.title)}" style="margin-bottom:8px;" oninput="updateBioCounter('edit-artwork')">
     <label>Kunstner</label>
-    <input type="text" id="edit-artwork-artist" value="${escape(a.artist)}" style="margin-bottom:8px;">
+    <input type="text" id="edit-artwork-artist" value="${escape(a.artist)}" style="margin-bottom:8px;" oninput="updateBioCounter('edit-artwork')">
     <div class="form-grid">
       <div><label>Type</label><select id="edit-artwork-type">
         ${['Maleri','Grafikk','Litografi','Giclée','Tresnitt','Akvarell','Tegning','Foto','Skulptur','Annet'].map(t => `<option ${a.type === t ? 'selected' : ''}>${t}</option>`).join('')}
@@ -4940,7 +4981,8 @@ function openArtwork(id) {
       </select></div>
     </div>
     <label>Fakta om kunstneren</label>
-    <textarea id="edit-artwork-bio" rows="3">${escape(a.bio || '')}</textarea>
+    <textarea id="edit-artwork-bio" rows="3" oninput="updateBioCounter('edit-artwork')">${escape(a.bio || '')}</textarea>
+    <div id="edit-artwork-bio-counter" style="font-size:12px;color:var(--muted);margin-top:4px;"></div>
     <div style="margin-top:12px;display:flex;gap:8px;">
       <button class="btn btn-small" onclick="saveArtworkEdit()">Lagre</button>
       <button class="btn btn-secondary btn-small" onclick="cancelArtworkEdit()">Avbryt</button>
@@ -4948,6 +4990,7 @@ function openArtwork(id) {
   </div>`;
 
   document.getElementById('modal-artwork-content').innerHTML = html;
+  updateBioCounter('edit-artwork');
   document.getElementById('artwork-modal').classList.add('show');
 }
 
