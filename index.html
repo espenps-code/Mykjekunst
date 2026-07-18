@@ -1717,6 +1717,14 @@
           <input type="number" id="set-monthly">
         </div>
         <div>
+          <label>Godta også (kr) — gammel sats</label>
+          <input type="number" id="set-monthly-alt" placeholder="tom = av">
+        </div>
+        <div>
+          <label>Gammel sats godtas t.o.m.</label>
+          <input type="month" id="set-monthly-alt-until" placeholder="tom = alltid">
+        </div>
+        <div>
           <label>Skoleår starter (måned)</label>
           <select id="set-startmonth">
             <option value="8">August</option>
@@ -1801,7 +1809,9 @@ let state = {
   settings: {
     name: 'MykjeKunst',
     deposit: 1000,
-    monthly: 200,
+    monthly: 250,
+    monthlyAlt: 200,
+    monthlyAltUntil: '2026-08',
     startMonth: 8,
     endMonth: 6,
     opening: 0
@@ -1922,6 +1932,18 @@ function subscribeToData() {
             parsedTx: data.parsedTx || [],
             lottery: data.lottery || { entries: [], winners: [] }
           };
+          // Engangsmigrering: satsendring 200 → 250 kr fra juli 2026,
+          // med 200 kr godtatt som overgangsbeløp t.o.m. august 2026.
+          if (data.settings && data.settings.monthlyAlt === undefined) {
+            if (Number(state.settings.monthly) === 200) {
+              state.settings.monthly = 250;
+              state.settings.monthlyAlt = 200;
+            } else {
+              state.settings.monthlyAlt = 200;
+            }
+            state.settings.monthlyAltUntil = '2026-08';
+            save();
+          }
           if (!firstLoad) {
             loadSettingsUI();
             renderAll();
@@ -2644,37 +2666,68 @@ function confirmExpense(idx) {
 
 // Detect if amount can be split into deposit + N monthly contributions
 function detectSplit(tx) {
-  const dep = state.settings.deposit;
-  const mon = state.settings.monthly;
-  if (!dep || !mon) return null;
+  const dep = state.settings.deposit || 0;
+  const amounts = monthlyAmounts(tx.date);
+  if (!amounts.length) return null;
 
-  // Case 1: deposit + 1..12 monthly = total
-  for (let n = 1; n <= 12; n++) {
-    if (Math.abs(tx.amount - (dep + n * mon)) < 0.5) {
-      return {
-        deposit: dep,
-        monthlyCount: n,
-        monthlyAmount: mon,
-        label: `innskudd (${fmt(dep)}) + ${n} × månedsbidrag (${fmt(mon)})`,
-        tooltip: `Splitt i ${fmt(dep)} innskudd og ${n} × ${fmt(mon)} månedsbidrag`
-      };
+  const MAXN = 12;
+  const combos = [];
+
+  const collect = (base) => {
+    if (amounts.length === 1) {
+      for (let n = 1; n <= MAXN; n++) {
+        if (Math.abs(tx.amount - (base + n * amounts[0])) < 0.5) {
+          combos.push({ deposit: base, list: Array(n).fill(amounts[0]) });
+        }
+      }
+    } else {
+      for (let n1 = 0; n1 <= MAXN; n1++) {
+        for (let n2 = 0; n2 <= MAXN - n1; n2++) {
+          if (n1 + n2 < 1) continue;
+          if (Math.abs(tx.amount - (base + n1 * amounts[0] + n2 * amounts[1])) < 0.5) {
+            combos.push({
+              deposit: base,
+              list: [...Array(n1).fill(amounts[0]), ...Array(n2).fill(amounts[1])]
+            });
+          }
+        }
+      }
     }
-  }
+  };
 
-  // Case 2: only multiple monthly bidrag, e.g. 400 = 2 × 200
-  for (let n = 2; n <= 12; n++) {
-    if (Math.abs(tx.amount - n * mon) < 0.5) {
-      return {
-        deposit: 0,
-        monthlyCount: n,
-        monthlyAmount: mon,
-        label: `${n} × månedsbidrag (${fmt(mon)})`,
-        tooltip: `Splitt i ${n} × ${fmt(mon)} månedsbidrag`
-      };
-    }
-  }
+  if (dep > 0) collect(dep);
+  collect(0);
 
-  return null;
+  // Uten innskudd må det være minst 2 måneder — ett enkelt månedsbidrag
+  // håndteres allerede som en vanlig innbetaling.
+  const valid = combos.filter(c => c.deposit > 0 || c.list.length >= 2);
+  if (!valid.length) return null;
+
+  const distinct = c => new Set(c.list).size;
+  valid.sort((a, b) =>
+    (b.deposit > 0) - (a.deposit > 0) ||     // innskudd-kombinasjon først
+    distinct(a) - distinct(b) ||             // helst én sats
+    a.list.length - b.list.length            // helst færrest måneder
+  );
+  const best = valid[0];
+
+  // Beskrivende tekst, f.eks. "2 × 250 kr + 1 × 200 kr"
+  const counts = new Map();
+  best.list.forEach(a => counts.set(a, (counts.get(a) || 0) + 1));
+  const monthlyText = [...counts.entries()].map(([a, n]) => `${n} × ${fmt(a)}`).join(' + ');
+
+  return {
+    deposit: best.deposit,
+    monthlyCount: best.list.length,
+    monthlyList: best.list,
+    monthlyAmount: best.list[0],
+    label: best.deposit > 0
+      ? `innskudd (${fmt(best.deposit)}) + månedsbidrag ${monthlyText}`
+      : `månedsbidrag ${monthlyText}`,
+    tooltip: best.deposit > 0
+      ? `Splitt i ${fmt(best.deposit)} innskudd og månedsbidrag ${monthlyText}`
+      : `Splitt i månedsbidrag ${monthlyText}`
+  };
 }
 
 function splitMatch(idx) {
@@ -2693,7 +2746,11 @@ function splitMatch(idx) {
   // Build confirmation message
   const parts = [];
   if (split.deposit > 0) parts.push(`${fmt(split.deposit)} som innskudd`);
-  if (split.monthlyCount > 0) parts.push(`${split.monthlyCount} × ${fmt(split.monthlyAmount)} som månedsbidrag`);
+  if (split.monthlyCount > 0) {
+    const c = new Map();
+    split.monthlyList.forEach(a => c.set(a, (c.get(a) || 0) + 1));
+    parts.push([...c.entries()].map(([a, n]) => `${n} × ${fmt(a)}`).join(' + ') + ' som månedsbidrag');
+  }
   if (!confirm(`Splitt ${fmt(tx.amount)} for ${m.name}:\n\n${parts.join('\n')}\n\nFortsette?`)) return;
 
   // Add deposit if any
@@ -2718,7 +2775,7 @@ function splitMatch(idx) {
     const dateStr = d.toISOString().slice(0, 10);
     state.payments.push({
       id: uid(), memberId, date: dateStr,
-      amount: split.monthlyAmount, type: 'monthly',
+      amount: split.monthlyList[i], type: 'monthly',
       description: tx.description + ' (splittet — månedsbidrag ' + (i+1) + '/' + split.monthlyCount + ')'
     });
   }
@@ -2773,12 +2830,31 @@ function suggestMember(tx) {
   return bestScore >= 1 ? bestMember : null;
 }
 
+// ---- Månedsbidrag: godkjente beløp (hovedbeløp + evt. overgangsbeløp) ----
+// Under en satsendring kan begge beløp forekomme. monthlyAltUntil ('YYYY-MM')
+// begrenser hvor lenge det gamle beløpet godtas. Tom verdi = godtas alltid.
+function monthlyAmounts(dateStr) {
+  const main = parseFloat(state.settings.monthly) || 0;
+  const alt = parseFloat(state.settings.monthlyAlt) || 0;
+  const list = [];
+  if (main > 0) list.push(main);
+  if (alt > 0 && alt !== main) {
+    const until = (state.settings.monthlyAltUntil || '').trim();
+    const key = dateStr ? String(dateStr).slice(0, 7) : null;
+    if (!until || !key || key <= until) list.push(alt);
+  }
+  return list;
+}
+
+function isMonthlyAmount(amount, dateStr) {
+  return monthlyAmounts(dateStr).some(m => Math.abs(amount - m) < 1);
+}
+
 function guessType(tx) {
   const dep = state.settings.deposit;
-  const mon = state.settings.monthly;
   if (Math.abs(tx.amount - dep) < 1) return 'deposit';
-  if (Math.abs(tx.amount - mon) < 1) return 'monthly';
-  if (mon > 0 && tx.amount % mon < 1 && tx.amount / mon <= 12) return 'monthly';
+  if (isMonthlyAmount(tx.amount, tx.date)) return 'monthly';
+  if (monthlyAmounts(tx.date).some(m => m > 0 && tx.amount % m < 1 && tx.amount / m <= 12)) return 'monthly';
   return 'auto';
 }
 
@@ -2791,9 +2867,8 @@ function confirmMatch(idx) {
   let type = typeSel.value;
   if (type === 'auto') {
     const dep = state.settings.deposit;
-    const mon = state.settings.monthly;
     if (Math.abs(tx.amount - dep) < 1) type = 'deposit';
-    else if (Math.abs(tx.amount - mon) < 1) type = 'monthly';
+    else if (isMonthlyAmount(tx.amount, tx.date)) type = 'monthly';
     else type = 'other';
   }
   const dup = state.payments.find(p => p.memberId === sel.value && p.date === tx.date && Math.abs(p.amount - tx.amount) < 1);
@@ -2824,7 +2899,6 @@ function autoMatchAll() {
     const m = suggestMember(tx);
     if (!m) { remaining.push(tx); return; }
     const dep = state.settings.deposit;
-    const mon = state.settings.monthly;
 
     // First check if this is a splittable combo (deposit + N monthly)
     const splitInfo = detectSplit(tx);
@@ -2838,8 +2912,8 @@ function autoMatchAll() {
       return;
     }
 
-    // Special case 2: exact monthly
-    if (Math.abs(tx.amount - mon) < 1) {
+    // Special case 2: exact monthly (godtar både gjeldende og overgangsbeløp)
+    if (isMonthlyAmount(tx.amount, tx.date)) {
       const dup = state.payments.find(p => p.memberId === m.id && p.date === tx.date && Math.abs(p.amount - tx.amount) < 1);
       if (dup) { remaining.push(tx); return; }
       state.payments.push({ id: uid(), memberId: m.id, date: tx.date, amount: tx.amount, type: 'monthly', description: tx.description });
@@ -2864,9 +2938,9 @@ function autoMatchAll() {
         const d = new Date(baseDateObj);
         d.setMonth(d.getMonth() - i);
         const dateStr = d.toISOString().slice(0, 10);
-        const dup = state.payments.find(p => p.memberId === m.id && p.date === dateStr && Math.abs(p.amount - splitInfo.monthlyAmount) < 1 && p.type === 'monthly');
+        const dup = state.payments.find(p => p.memberId === m.id && p.date === dateStr && Math.abs(p.amount - splitInfo.monthlyList[i]) < 1 && p.type === 'monthly');
         if (!dup) {
-          state.payments.push({ id: uid(), memberId: m.id, date: dateStr, amount: splitInfo.monthlyAmount, type: 'monthly', description: tx.description + ' (auto-splittet — månedsbidrag ' + (i+1) + '/' + splitInfo.monthlyCount + ')' });
+          state.payments.push({ id: uid(), memberId: m.id, date: dateStr, amount: splitInfo.monthlyList[i], type: 'monthly', description: tx.description + ' (auto-splittet — månedsbidrag ' + (i+1) + '/' + splitInfo.monthlyCount + ')' });
         }
       }
       split++;
@@ -5323,10 +5397,13 @@ function renderDashboard() {
     document.getElementById('month-status').innerHTML = '<div class="empty"><div class="empty-title">Ingen aktive medlemmer</div></div>';
   } else {
     const paidCount = activeMembers.filter(m => paidThisMonth.has(m.id)).length;
+    const receivedThisMonth = state.payments
+      .filter(p => p.type === 'monthly' && monthKey(p.date) === currentKey)
+      .reduce((s, p) => s + p.amount, 0);
     const missingMembers = activeMembers.filter(m => !paidThisMonth.has(m.id));
     let html = `<div style="display:flex;gap:24px;margin-bottom:16px;flex-wrap:wrap;">
       <div><span class="badge badge-ok">${paidCount}/${activeMembers.length}</span> har betalt</div>
-      <div style="color:var(--muted);font-size:14px;">Forventet: ${fmt(activeMembers.length * state.settings.monthly)}, mottatt: ${fmt(paidCount * state.settings.monthly)}</div>
+      <div style="color:var(--muted);font-size:14px;">Forventet: ${fmt(activeMembers.length * state.settings.monthly)}, mottatt: ${fmt(receivedThisMonth)}</div>
     </div>`;
     if (missingMembers.length > 0) {
       html += '<div><label>Mangler innbetaling</label><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">';
@@ -5368,6 +5445,8 @@ function loadSettingsUI() {
   document.getElementById('set-name').value = state.settings.name;
   document.getElementById('set-deposit').value = state.settings.deposit;
   document.getElementById('set-monthly').value = state.settings.monthly;
+  document.getElementById('set-monthly-alt').value = state.settings.monthlyAlt || '';
+  document.getElementById('set-monthly-alt-until').value = state.settings.monthlyAltUntil || '';
   document.getElementById('set-startmonth').value = state.settings.startMonth;
   document.getElementById('set-endmonth').value = state.settings.endMonth;
   document.getElementById('set-opening').value = state.settings.opening || 0;
@@ -5375,7 +5454,9 @@ function loadSettingsUI() {
 function saveSettings() {
   state.settings.name = document.getElementById('set-name').value || 'MykjeKunst';
   state.settings.deposit = parseFloat(document.getElementById('set-deposit').value) || 1000;
-  state.settings.monthly = parseFloat(document.getElementById('set-monthly').value) || 200;
+  state.settings.monthly = parseFloat(document.getElementById('set-monthly').value) || 250;
+  state.settings.monthlyAlt = parseFloat(document.getElementById('set-monthly-alt').value) || 0;
+  state.settings.monthlyAltUntil = document.getElementById('set-monthly-alt-until').value || '';
   state.settings.startMonth = parseInt(document.getElementById('set-startmonth').value);
   state.settings.endMonth = parseInt(document.getElementById('set-endmonth').value);
   state.settings.opening = parseFloat(document.getElementById('set-opening').value) || 0;
